@@ -5,3 +5,8 @@ data/*.tmp
 # python
 __pycache__/
 *.pyc
+
+# сборка exe
+build/
+dist/
+VibeC.exe

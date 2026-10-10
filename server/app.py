@@ -31,7 +31,7 @@ import scanner
 from store import ProgressStore, ALLOWED_STATUS
 
 SERVER_VERSION = "VibeC/1.0"
-CONTRACT_VERSION = "1.0"
+CONTRACT_VERSION = "1.1"
 
 # текстовые типы всегда отдаём с utf-8
 TEXT_TYPES = ("text/", "application/json", "application/javascript")
@@ -188,10 +188,15 @@ class VibeCRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "обязательно поле lesson_id"}, 400)
             return
         status = data.get("status")
-        if status is None:  # снять отметку
+        if status is None:  # снять отметку можно и с исчезнувшего урока — так чистятся сироты
             removed = self.server.store.clear(lesson_id)
             self._send_json({"lesson_id": lesson_id, "cleared": removed,
                              "items": self.server.store.all()})
+            return
+        catalog = scanner.scan_catalog(self.server.content_root)
+        if scanner.find_lesson(catalog, lesson_id) is None:
+            self._send_json({"error": f"урок {lesson_id!r} отсутствует в каталоге",
+                             "hint": "обновите /api/catalog"}, 404)
             return
         note = data.get("note")
         try:
@@ -382,7 +387,11 @@ def main(argv=None) -> None:
     print(f"Адрес          : {url}")
     print("Остановка      : Ctrl+C")
 
-    if config.OPEN_BROWSER and not args.no_browser:
+    # из exe браузер открываем по умолчанию (ярлык на рабочем столе);
+    # при запуске из исходников — только через VIBEC_OPEN_BROWSER=1 или запуск.bat
+    auto_open = (not args.no_browser) and (config.OPEN_BROWSER
+                                           or getattr(sys, "frozen", False))
+    if auto_open:
         threading.Timer(0.8, webbrowser.open, args=(url,)).start()
 
     try:

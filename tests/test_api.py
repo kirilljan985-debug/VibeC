@@ -110,6 +110,17 @@ class ApiTests(unittest.TestCase):
         status, _, _ = fetch(self.base, "/api/progress", "POST", "не-объект")
         self.assertEqual(status, 400)
 
+    def test_progress_unknown_lesson_rejected_on_set_allowed_on_clear(self):
+        # постановка отметки для урока не из каталога → 404 (защита от сирот в json)
+        status, _, body = fetch(self.base, "/api/progress", "POST",
+                                {"lesson_id": "ghost-9999", "status": "done"})
+        self.assertEqual(status, 404)
+        self.assertIn("отсутствует в каталоге", jbody(body)["error"])
+        # снятие разрешено: так убираются осиротевшие записи
+        status, _, _ = fetch(self.base, "/api/progress", "POST",
+                             {"lesson_id": "ghost-9999", "status": None})
+        self.assertEqual(status, 200)
+
     def test_search_endpoint(self):
         status, _, body = fetch(self.base, "/api/search?q=%D0%B3%D0%BB%D0%BE%D1%81%D1%81")
         self.assertEqual(status, 200)

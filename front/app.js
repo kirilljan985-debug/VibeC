@@ -8,7 +8,8 @@
   let routeVersion = 0, catalogVersion = 0, progressRevision = 0, searchTimer, searchController, toastTimer;
   let catalogController;
 
-  const escape = (value = "") => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  const esc = (value = "") => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  const seedTip = lesson => !state.progress[lesson.id]?.status && lesson.seed_label ? `Заметка преподавателя: ${lesson.seed_label}` : "";
   const effectiveStatus = lesson => state.progress[lesson.id]?.status || lesson.seed_status || "planned";
   const allLessons = () => [...(state.catalog?.tracks || []).flatMap(track => track.lessons || []), ...(state.catalog?.express_course?.lessons || [])];
   const completed = lessons => lessons.filter(lesson => effectiveStatus(lesson) === "done").length;
@@ -35,6 +36,10 @@
     const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
     try {
       const response = await fetch(url, { cache: "no-store", ...options, signal: controller.signal });
+      if (options.raw) {
+        if (!response.ok) throw new Error(`Ошибка сервера (${response.status}).`);
+        return await response.text();
+      }
       let data;
       try { data = await response.json(); } catch { throw new Error("Сервер вернул ответ, который не удалось прочитать."); }
       if (!response.ok) throw new Error(data.error || `Ошибка сервера (${response.status}).`);
@@ -55,7 +60,7 @@
     toastTimer = setTimeout(() => { element.hidden = true; }, 4500);
   }
   function notice(message = "") {
-    $("#notice").innerHTML = message ? `<div class="notice">${escape(message)} <button type="button" data-action="reload">Повторить</button></div>` : "";
+    $("#notice").innerHTML = message ? `<div class="notice">${esc(message)} <button type="button" data-action="reload">Повторить</button></div>` : "";
   }
   function route() {
     const hash = location.hash.slice(1);
@@ -71,15 +76,15 @@
     const done = effectiveStatus(lesson) === "done";
     const pending = state.pending.has(lesson.id);
     const label = done ? "Снять отметку «пройдено»" : "Отметить как пройденное";
-    return `<button type="button" class="${full ? "button subtle" : `completion${done ? " checked" : ""}`}" data-action="complete" data-id="${escape(lesson.id)}" aria-label="${escape(`${label}: ${lesson.title}`)}" aria-pressed="${done}" ${pending ? 'aria-disabled="true"' : ""} title="${label}">${pending ? "…" : done ? "✓" : full ? "○" : ""}${full ? ` ${done ? "Пройдено" : "Отметить пройденным"}` : ""}</button>`;
+    return `<button type="button" class="${full ? "button subtle" : `completion${done ? " checked" : ""}`}" data-action="complete" data-id="${esc(lesson.id)}" aria-label="${esc(`${label}: ${lesson.title}`)}" aria-pressed="${done}" ${pending ? 'aria-disabled="true"' : ""} title="${label}">${pending ? "…" : done ? "✓" : full ? "○" : ""}${full ? ` ${done ? "Пройдено" : "Отметить пройденным"}` : ""}</button>`;
   }
   function lessonRow(lesson) {
     const status = effectiveStatus(lesson);
     const badges = (lesson.interactive || []).map(type => ({ quiz: "Квиз", flashcards: "Карточки", glossary: "Глоссарий" })[type]).filter(Boolean);
-    return `<div class="lesson-row"><a class="lesson-open" href="${lessonHref(lesson.id)}"><span class="lesson-number">${escape(lesson.number)}</span><span class="lesson-info"><span class="lesson-title">${escape(lesson.title)}</span>${lesson.kicker ? `<span class="lesson-kicker">${escape(lesson.kicker)}</span>` : ""}<span class="badges"><span class="badge status ${escape(status)}">${escape(statusLabels[status] || "Не начат")}</span>${badges.map(label => `<span class="badge">${label}</span>`).join("")}</span></span></a>${completionButton(lesson)}</div>`;
+    return `<div class="lesson-row"><a class="lesson-open" href="${lessonHref(lesson.id)}"><span class="lesson-number">${esc(lesson.number)}</span><span class="lesson-info"><span class="lesson-title">${esc(lesson.title)}</span>${lesson.kicker ? `<span class="lesson-kicker">${esc(lesson.kicker)}</span>` : ""}<span class="badges"><span class="badge status ${esc(status)}"${seedTip(lesson) ? ` title="${esc(seedTip(lesson))}"` : ""}>${esc(statusLabels[status] || "Не начат")}</span>${badges.map(label => `<span class="badge">${label}</span>`).join("")}</span></span></a>${completionButton(lesson)}</div>`;
   }
   function heading(title, subtitle, eyebrow = "ВАШЕ ПРОСТРАНСТВО") {
-    return `<div class="page-heading"><div><div class="eyebrow">${eyebrow}</div><h1>${escape(title)}</h1><p>${escape(subtitle)}</p></div><span class="small-tag"><span class="live-dot"></span> В своём темпе</span></div>`;
+    return `<div class="page-heading"><div><div class="eyebrow">${eyebrow}</div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div><span class="small-tag"><span class="live-dot"></span> В своём темпе</span></div>`;
   }
   function filters() {
     return `<div class="filter-tabs" role="group" aria-label="Фильтр уроков">${[["all", "Все уроки"], ["unfinished", "Не пройдены"], ["done", "Пройденные"]].map(([value, label]) => `<button type="button" data-action="filter" data-filter="${value}" aria-pressed="${state.filter === value}" class="${state.filter === value ? "active" : ""}">${label}</button>`).join("")}</div>`;
@@ -91,21 +96,21 @@
       const lessons = track.lessons || [], visible = filtered(lessons);
       const title = track.title || "Новый трек";
       const open = expanded || state.openTracks.has(track.id);
-      return `<article class="track"><div class="track-symbol" aria-hidden="true">${["⌘", "✳", "&lt;/&gt;"][index % 3]}</div><h3>${escape(title)}</h3><p class="track-description">${escape(track.description || "Новый раздел вашего курса. Открывайте уроки и двигайтесь в своём темпе.")}</p><div class="progress-meta"><span>${completed(lessons)} из ${lessons.length} пройдено</span><span>${percent(lessons)}%</span></div>${progressBar(lessons)}<details data-track="${escape(track.id)}" ${open ? "open" : ""}><summary>Уроки трека · ${visible.length}</summary><div class="lesson-list">${visible.map(lessonRow).join("") || `<p class="empty">${lessons.length ? "Нет уроков с выбранным статусом." : "Уроки скоро появятся."}</p>`}</div></details></article>`;
+      return `<article class="track"><div class="track-symbol" aria-hidden="true">${["⌘", "✳", "&lt;/&gt;"][index % 3]}</div><h3>${esc(title)}</h3><p class="track-description">${esc(track.description || "Новый раздел вашего курса. Открывайте уроки и двигайтесь в своём темпе.")}</p><div class="progress-meta"><span>${completed(lessons)} из ${lessons.length} пройдено</span><span>${percent(lessons)}%</span></div>${progressBar(lessons)}<details data-track="${esc(track.id)}" ${open ? "open" : ""}><summary>Уроки трека · ${visible.length}</summary><div class="lesson-list">${visible.map(lessonRow).join("") || `<p class="empty">${lessons.length ? "Нет уроков с выбранным статусом." : "Уроки скоро появятся."}</p>`}</div></details></article>`;
     }).join("")}</div>`;
   }
   function renderExpress() {
     const course = state.catalog.express_course || {};
     const lessons = course.lessons || [];
     const intro = safeURL(course.intro_url), glossary = safeURL(course.glossary_url);
-    return `<div class="express-panel"><div><div class="eyebrow">БЫСТРЫЙ СТАРТ</div><h3>${escape(course.title || "Экспресс-курс")}</h3><p>${escape(course.description || "Короткий путь к первым результатам.")}</p><div class="progress-meta"><span>${completed(lessons)} из ${lessons.length} пройдено</span><span>${percent(lessons)}%</span></div>${progressBar(lessons)}<div class="express-links">${intro ? `<a class="text-link" href="#resource/express-intro">О курсе ↗</a>` : ""}${glossary ? `<a class="text-link" href="#resource/express-glossary">Глоссарий ↗</a>` : ""}</div></div>${lessons.length ? `<a class="button primary" href="${lessonHref(lessons.find(lesson => effectiveStatus(lesson) !== "done")?.id || lessons[0].id)}">Открыть курс <span aria-hidden="true">→</span></a>` : ""}</div><div class="express-lessons">${filtered(lessons).map(lessonRow).join("") || `<div class="empty">${lessons.length ? "Нет уроков с выбранным статусом." : "В экспресс-курсе пока нет уроков."}</div>`}</div>`;
+    return `<div class="express-panel"><div><div class="eyebrow">БЫСТРЫЙ СТАРТ</div><h3>${esc(course.title || "Экспресс-курс")}</h3><p>${esc(course.description || "Короткий путь к первым результатам.")}</p><div class="progress-meta"><span>${completed(lessons)} из ${lessons.length} пройдено</span><span>${percent(lessons)}%</span></div>${progressBar(lessons)}<div class="express-links">${intro ? `<a class="text-link" href="#resource/express-intro">О курсе ↗</a>` : ""}${glossary ? `<a class="text-link" href="#resource/express-glossary">Глоссарий ↗</a>` : ""}</div></div>${lessons.length ? `<a class="button primary" href="${lessonHref(lessons.find(lesson => effectiveStatus(lesson) !== "done")?.id || lessons[0].id)}">Открыть курс <span aria-hidden="true">→</span></a>` : ""}</div><div class="express-lessons">${filtered(lessons).map(lessonRow).join("") || `<div class="empty">${lessons.length ? "Нет уроков с выбранным статусом." : "В экспресс-курсе пока нет уроков."}</div>`}</div>`;
   }
   function renderResources() {
     const groups = resourceGroups().filter(([, , , items]) => items.length);
     return groups.map(([group, title, symbol, items]) => `<h3 class="group-label">${title} · ${items.length}</h3><div class="resource-grid">${items.map(item => {
       const href = `#resource/${encodeURIComponent(`${group}:${item.file || item.id}`)}`;
       const size = item.size_bytes != null ? `${Math.max(1, Math.round(item.size_bytes / 1024))} КБ` : "";
-      return `<a class="resource" href="${href}"><span class="resource-symbol" aria-hidden="true">${symbol}</span><span class="resource-body"><strong>${escape(item.title || item.name || item.id)}</strong><small>${escape(item.description || size || (group === "progress_notes" ? "Дневник обучения" : group === "documents" ? "Документ курса" : "Открыть материал"))}</small></span><span class="resource-arrow" aria-hidden="true">↗</span></a>`;
+      return `<a class="resource" href="${href}"><span class="resource-symbol" aria-hidden="true">${symbol}</span><span class="resource-body"><strong>${esc(item.title || item.name || item.id)}</strong><small>${esc(item.description || size || (group === "progress_notes" ? "Дневник обучения" : group === "documents" ? "Документ курса" : "Открыть материал"))}</small></span><span class="resource-arrow" aria-hidden="true">↗</span></a>`;
     }).join("")}</div>`).join("") || `<div class="empty">Справочники и документы появятся здесь, когда будут добавлены в курс.</div>`;
   }
   function renderDashboard(page) {
@@ -118,7 +123,7 @@
     const heroText = resume?.summary || (lessons.length ? "Можно вернуться к материалам, закрепить знания или дождаться новых уроков." : "Добавленные в папку обучения уроки и материалы появятся на этой странице.");
     const resources = resourceGroups().reduce((sum, [, , , items]) => sum + items.length, 0);
     return heading("Новый день. Новые навыки.", "Продолжайте с того места, где остановились. Всё нужное уже здесь.") +
-      `<section class="hero" aria-label="Продолжить обучение"><div><div class="eyebrow">${resume ? "ПРОДОЛЖИТЬ ОБУЧЕНИЕ" : "ВАШ УЧЕБНЫЙ МАРШРУТ"}</div><h2>${escape(heroTitle)}</h2><p>${escape(heroText)}</p>${resume ? `<a class="button primary" href="${lessonHref(resume.id)}">${["reading", "in-progress"].includes(effectiveStatus(resume)) ? "Продолжить урок" : "Начать урок"} <span aria-hidden="true">→</span></a>` : `<a class="button primary" href="#lessons">К урокам <span aria-hidden="true">→</span></a>`}</div><div class="hero-side"><strong>${percent(lessons)}<span style="font-size:.55em">%</span></strong><span>курса пройдено</span>${progressBar(lessons)}<small>${done} из ${lessons.length} уроков</small></div></section>` +
+      `<section class="hero" aria-label="Продолжить обучение"><div><div class="eyebrow">${resume ? "ПРОДОЛЖИТЬ ОБУЧЕНИЕ" : "ВАШ УЧЕБНЫЙ МАРШРУТ"}</div><h2>${esc(heroTitle)}</h2><p>${esc(heroText)}</p>${resume ? `<a class="button primary" href="${lessonHref(resume.id)}">${["reading", "in-progress"].includes(effectiveStatus(resume)) ? "Продолжить урок" : "Начать урок"} <span aria-hidden="true">→</span></a>` : `<a class="button primary" href="#lessons">К урокам <span aria-hidden="true">→</span></a>`}</div><div class="hero-side"><strong>${percent(lessons)}<span style="font-size:.55em">%</span></strong><span>курса пройдено</span>${progressBar(lessons)}<small>${done} из ${lessons.length} уроков</small></div></section>` +
       `<div class="stats">${[["▤", lessons.length, "Уроков в курсе"], ["✓", done, "Пройдено"], ["◈", (state.catalog.tracks || []).length, "Учебных треков"], ["◫", resources, "Материалов под рукой"]].map(([icon, value, label]) => `<div class="stat"><span class="stat-icon" aria-hidden="true">${icon}</span><div><strong>${value}</strong><small>${label}</small></div></div>`).join("")}</div>` +
       `<section class="section"><div class="section-head"><div><h2><span class="section-number">01</span>Ваши учебные треки</h2><p>Выбирайте направление и двигайтесь шаг за шагом</p></div><a class="text-link" href="#lessons">Все уроки →</a></div>${filters()}${renderTracks()}</section>` +
       `<section class="section"><div class="section-head"><h2><span class="section-number">02</span>Экспресс-курс</h2><a class="text-link" href="#express">К курсу →</a></div>${renderExpress()}</section>` +
@@ -128,7 +133,7 @@
     const url = safeURL(item.url);
     if (!url) throw new Error("У материала нет доступной ссылки.");
     const markdown = /\.md$/i.test(new URL(url).pathname);
-    return `<div class="viewer-toolbar"><a class="button subtle" href="#${lesson ? (item.track === "express" ? "express" : "lessons") : "resources"}">← ${lesson ? "К урокам" : "К материалам"}</a>${lesson ? completionButton(item, true) : ""}<a class="button subtle" href="${escape(url)}" target="_blank" rel="noopener">Открыть отдельно ↗</a></div><div class="viewer-heading"><div class="eyebrow">${escape(item.track_title || "МАТЕРИАЛ КУРСА")}</div><h1>${escape(item.title || item.name)}</h1>${item.kicker ? `<p>${escape(item.kicker)}</p>` : ""}</div>${markdown ? `<pre class="document-text" id="document-text">Загружаем документ…</pre>` : `<iframe class="viewer-frame" src="${escape(url)}" title="${escape(item.title || item.name)}"></iframe>`}${lesson ? `<div class="viewer-bottom">${item.prev_id ? `<a class="button subtle" href="${lessonHref(item.prev_id)}">← Предыдущий урок</a>` : "<span></span>"}${item.next_id ? `<a class="button subtle" href="${lessonHref(item.next_id)}">Следующий урок →</a>` : `<span class="small-tag">Последний урок курса</span>`}</div>` : ""}`;
+    return `<div class="viewer-toolbar"><a class="button subtle" href="#${lesson ? (item.track === "express" ? "express" : "lessons") : "resources"}">← ${lesson ? "К урокам" : "К материалам"}</a>${lesson ? completionButton(item, true) : ""}<a class="button subtle" href="${esc(url)}" target="_blank" rel="noopener">Открыть отдельно ↗</a></div><div class="viewer-heading"><div class="eyebrow">${esc(item.track_title || "МАТЕРИАЛ КУРСА")}</div><h1>${esc(item.title || item.name)}</h1>${item.kicker ? `<p>${esc(item.kicker)}</p>` : ""}${lesson && !item.progress?.status && item.seed_label ? `<p class="seed-note">Преподаватель: ${esc(item.seed_label)}</p>` : ""}</div>${markdown ? `<pre class="document-text" id="document-text">Загружаем документ…</pre>` : `<iframe class="viewer-frame" src="${esc(url)}" title="${esc(item.title || item.name)}"></iframe>`}${lesson ? `<div class="viewer-bottom">${item.prev_id ? `<a class="button subtle" href="${lessonHref(item.prev_id)}">← Предыдущий урок</a>` : "<span></span>"}${item.next_id ? `<a class="button subtle" href="${lessonHref(item.next_id)}">Следующий урок →</a>` : `<span class="small-tag">Последний урок курса</span>`}</div>` : ""}`;
   }
   function findResource(id) {
     const course = state.catalog.express_course || {};
@@ -143,7 +148,7 @@
     content.setAttribute("aria-busy", "false");
   }
   function errorContent(error) {
-    return `<div class="empty"><h2>Не удалось открыть страницу</h2><p>${escape(error.message || "Проверьте, что сервер VibeC запущен.")}</p><button class="button primary" type="button" data-action="reload">Повторить</button> <a class="button subtle" href="#home">На главную</a></div>`;
+    return `<div class="empty"><h2>Не удалось открыть страницу</h2><p>${esc(error.message || "Проверьте, что сервер VibeC запущен.")}</p><button class="button primary" type="button" data-action="reload">Повторить</button> <a class="button subtle" href="#home">На главную</a></div>`;
   }
   async function renderRoute({ focus = false } = {}) {
     const version = ++routeVersion;
@@ -186,9 +191,7 @@
         setContent(viewerHTML(item));
         document.title = `${item.title || item.name} · VibeC`;
         if ($("#document-text")) {
-          const response = await fetch(safeURL(item.url));
-          if (!response.ok) throw new Error("Не удалось загрузить документ.");
-          const text = await response.text();
+          const text = await request(safeURL(item.url), { raw: true });
           if (version === routeVersion && $("#document-text")) $("#document-text").textContent = text;
         }
         return;
@@ -201,10 +204,10 @@
     }
   }
   function highlighted(text, query) {
-    if (!query) return escape(text);
+    if (!query) return esc(text);
     const source = String(text), start = source.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
-    if (start < 0) return escape(source);
-    return escape(source.slice(0, start)) + `<mark>${escape(source.slice(start, start + query.length))}</mark>` + escape(source.slice(start + query.length));
+    if (start < 0) return esc(source);
+    return esc(source.slice(0, start)) + `<mark>${esc(source.slice(start, start + query.length))}</mark>` + esc(source.slice(start + query.length));
   }
   async function search(query, version) {
     const term = query.trim();
@@ -216,7 +219,7 @@
     const data = await request(`/api/search?q=${encodeURIComponent(term)}`, { signal: searchController.signal });
     if (version !== routeVersion) return;
     const results = data.results || [];
-    setContent(title + (results.length ? `<p class="group-label">Найдено уроков: ${results.length}</p><div class="search-results">${results.map(item => `<article class="search-result"><small>${escape(item.track_title)}</small><h2><a class="text-link" href="${lessonHref(item.id)}">${escape(item.title)} →</a></h2><p>${highlighted(item.snippet, term)}</p></article>`).join("")}</div>` : `<div class="empty"><h3>Пока ничего не найдено</h3><p>Попробуйте другое слово или более короткий запрос.</p></div>`));
+    setContent(title + (results.length ? `<p class="group-label">Найдено уроков: ${results.length}</p><div class="search-results">${results.map(item => `<article class="search-result"><small>${esc(item.track_title)}</small><h2><a class="text-link" href="${lessonHref(item.id)}">${esc(item.title)} →</a></h2><p>${highlighted(item.snippet, term)}</p></article>`).join("")}</div>` : `<div class="empty"><h3>Пока ничего не найдено</h3><p>Попробуйте другое слово или более короткий запрос.</p></div>`));
   }
   async function loadCatalog({ quiet = false } = {}) {
     const version = ++catalogVersion;
@@ -240,6 +243,18 @@
       notice(progressError ? "Каталог загружен, но сохранённые отметки прогресса сейчас недоступны." : "");
       const page = route().page;
       if (!quiet || ((changed || previousProgress !== JSON.stringify(state.progress)) && ["home", "lessons", "express", "resources"].includes(page))) await renderRoute();
+      else if (quiet && (changed || previousProgress !== JSON.stringify(state.progress)) && page === "lesson" && state.resource) {
+        // открытый урок: молча обновляем данные и кнопку отметки, не перерисовывая iframe
+        const fresh = allLessons().find(item => item.id === state.resource.id);
+        if (fresh) {
+          Object.assign(state.resource, fresh);
+          state.resource.progress = state.progress[fresh.id] || null;
+          updateCompletionUI();
+        } else {
+          state.resource = null;
+          setContent(`<div class="empty"><h2>Урок исчез из курса</h2><p>Похоже, преподаватель убрал или переработал этот урок.</p><a class="button primary" href="#home">На главную</a></div>`);
+        }
+      }
     } catch (error) {
       if (error.name === "AbortError" || version !== catalogVersion) return;
       if (state.catalog) notice("Не удалось обновить курс. Показаны последние загруженные данные.");
@@ -262,12 +277,13 @@
   }
   async function toggleCompletion(id) {
     if (state.pending.has(id)) return;
-    const lesson = allLessons().find(item => item.id === id) || (state.resource?.id === id ? state.resource : null);
-    if (!lesson) return;
+    // отметка ставится только уроку из текущего каталога: урок мог исчезнуть из папки
+    const lesson = allLessons().find(item => item.id === id);
+    if (!lesson) { toast("Урока нет в текущем каталоге. Обновите курс и попробуйте снова."); return; }
     ++progressRevision;
     const previous = state.progress[id];
     const wasDone = effectiveStatus(lesson) === "done";
-    // Clearing a user mark restores the teacher's seed. Override a done seed explicitly.
+    // снятие отметки возвращает статус семени преподавателя; для done-семени явно ставим not-started
     const status = wasDone ? lesson.seed_status === "done" ? "not-started" : null : "done";
     if (status) state.progress[id] = { status }; else delete state.progress[id];
     state.pending.add(id);
@@ -306,12 +322,14 @@
     if (details.open) state.openTracks.add(details.dataset.track); else state.openTracks.delete(details.dataset.track);
   }, true);
   $("#refresh").addEventListener("click", () => loadCatalog());
-  function submitSearch() {
+  function submitSearch(push = false) {
     clearTimeout(searchTimer);
     const hash = `#search/${encodeURIComponent($("#search").value.trim())}`;
-    if (location.hash === hash) renderRoute(); else location.hash = hash;
+    if (location.hash === hash) { renderRoute(); return; }
+    if (push) location.hash = hash;              // Enter — шаг в истории «Назад»
+    else { history.replaceState(null, "", hash); renderRoute(); } // набор текста — историю не засоряем
   }
-  $("#search-form").addEventListener("submit", event => { event.preventDefault(); submitSearch(); });
+  $("#search-form").addEventListener("submit", event => { event.preventDefault(); submitSearch(true); });
   $("#search").addEventListener("input", () => {
     clearTimeout(searchTimer);
     searchController?.abort();

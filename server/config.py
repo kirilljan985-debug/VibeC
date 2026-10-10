@@ -8,9 +8,15 @@
   VIBEC_OPEN_BROWSER  — 1: открыть браузер после старта (использует запуск.bat)
 """
 import os
+import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+if getattr(sys, "frozen", False):
+    # режим exe (PyInstaller): __file__ указывает во временную папку распаковки,
+    # поэтому репозиторий ищем рядом с самим exe — exe живёт в корне VibeC
+    REPO_ROOT = Path(sys.executable).resolve().parent
+else:
+    REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # По умолчанию папка «обучение» ищется рядом с репозиторием (оба на рабочем столе).
 DEFAULT_CONTENT_ROOT = REPO_ROOT.parent / "обучение"

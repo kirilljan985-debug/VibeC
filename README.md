@@ -9,9 +9,9 @@
 
 ## Запуск
 
-Двойной клик по **`запуск.bat`** — поднимет сервер и откроет браузер на `http://127.0.0.1:8765/`.
+**Ярлык «VibeC» на рабочем столе** (иконка VC) — поднимет сервер и откроет браузер на `http://127.0.0.1:8765/`. Ярлык указывает на `VibeC.exe` в корне репозитория (собран PyInstaller'ом, пересборка: `python -m PyInstaller --noconfirm --onefile --name VibeC --icon assets/vibec.ico --paths server server/app.py`).
 
-Или вручную:
+Или из исходников: двойной клик по **`запуск.bat`**, либо:
 
 ```bash
 python server/app.py
