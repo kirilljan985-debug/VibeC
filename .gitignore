@@ -1,0 +1,7 @@
+# runtime-данные бэкенда
+data/progress.json
+data/*.tmp
+
+# python
+__pycache__/
+*.pyc
