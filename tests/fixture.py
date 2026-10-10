@@ -2,7 +2,7 @@
 """Фикстура: миниатюра папки «обучение» для тестов (создаётся во временной папке)."""
 from pathlib import Path
 
-EXPRESS_DIRNAME = "экспресс-курс-вайб-кодера"
+EXPRESS_BRANCH = "экспресс-курсы"
 
 MEMORY_MD = """# 🧠 ПАМЯТЬ КУРСА
 
@@ -94,21 +94,33 @@ def build_fixture(root: Path) -> Path:
                     "Урок из новой папки.",
                     "новинке"), encoding="utf-8")
 
-    express = root / EXPRESS_DIRNAME
-    express.mkdir(parents=True)
-    (express / "index.html").write_text(
-        "<html><head><meta charset='UTF-8'><title>Экспресс-курс вайб-кодера"
-        " · работа с ИИ-агентом</title></head><body><h1>Вайб-кодер</h1></body></html>",
-        encoding="utf-8")
-    (express / "0001-roli-vayb-kodera.html").write_text(
-        lesson_html("Экспресс 0001 · Роли",
-                    "Экспресс-курс · Урок 1",
-                    "Роль вайб-кодера",
-                    "Кто такой вайб-кодер.",
-                    "роли"), encoding="utf-8")
-    (express / "glossary-interactive.html").write_text(
-        "<html><head><meta charset='UTF-8'><title>Глоссарий экспресс-курса"
-        "</title></head><body></body></html>", encoding="utf-8")
+    express_branch = root / EXPRESS_BRANCH
+    for course_folder, course_title, course_meta, lessons in [
+        ("вайб-кодер-junior", "Вайб-кодер: junior",
+         "Первый курс ветки: работа с ИИ-агентом.", 2),
+        ("вайб-кодер-middle", "Вайб-кодер: middle",
+         "Вторая ступень ветки: ветки, тесты, дебаг.", 1),
+    ]:
+        course_dir = express_branch / course_folder
+        course_dir.mkdir(parents=True)
+        (course_dir / "index.html").write_text(
+            "<html><head><meta charset='UTF-8'>"
+            f"<title>{course_title} · курс ветки</title></head><body>"
+            f"<div class=\"lesson-kicker\">{course_title} · курс ветки</div>"
+            f"<h1>{course_title}</h1>"
+            f"<p class=\"lesson-meta\">{course_meta}</p></body></html>",
+            encoding="utf-8")
+        for i in range(1, lessons + 1):
+            (course_dir / f"{i:04d}-urok.html").write_text(
+                lesson_html(f"{course_title} · Урок {i}",
+                            f"{course_title} · Урок {i} из {lessons}",
+                            f"Урок {i} курса {course_title}",
+                            f"Урок {i} из курса {course_folder}.",
+                            f"уроке-{course_folder}-{i}"), encoding="utf-8")
+        if course_folder.endswith("junior"):
+            (course_dir / "glossary-interactive.html").write_text(
+                "<html><head><meta charset='UTF-8'><title>Глоссарий junior"
+                "</title></head><body></body></html>", encoding="utf-8")
 
     refs = root / "справочники"
     refs.mkdir(parents=True)

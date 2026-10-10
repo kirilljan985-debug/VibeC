@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import urllib.request
 import urllib.error
+from urllib.parse import quote
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "server"))
@@ -65,6 +66,18 @@ class ApiTests(unittest.TestCase):
         catalog = jbody(body)
         self.assertEqual(catalog["api"], "vibec")
         self.assertGreaterEqual(catalog["counts"]["lessons"], 4)
+        self.assertGreaterEqual(catalog["counts"]["express_courses"], 2)
+        self.assertEqual(catalog["express_courses"][0]["id"], "вайб-кодер-junior")
+
+    def test_express_lesson_endpoint(self):
+        status, _, body = fetch(
+            self.base, f"/api/lesson/{quote('вайб-кодер-middle-0001')}")
+        self.assertEqual(status, 200)
+        lesson = jbody(body)
+        self.assertIn("Вайб-кодер: middle", lesson["track_title"])
+        # junior в фикстуре содержит два урока → сосед middle-0001 — junior-0002
+        self.assertEqual(lesson["prev_id"], "вайб-кодер-junior-0002")
+        self.assertIsNone(lesson["next_id"])
 
     def test_lesson_endpoint_found_and_not_found(self):
         status, _, body = fetch(self.base, "/api/lesson/base-0002")
@@ -79,30 +92,32 @@ class ApiTests(unittest.TestCase):
         self.assertIn("не найден", jbody(body)["error"])
 
     def test_progress_roundtrip_and_persistence(self):
-        # поставить
+        # поставить (id экспресс-урока с кириллицей — как в реальном каталоге)
+        lesson_id = "вайб-кодер-junior-0001"
         status, _, body = fetch(self.base, "/api/progress", "POST",
-                                {"lesson_id": "base-0001", "status": "done"})
+                                {"lesson_id": lesson_id, "status": "done"})
         self.assertEqual(status, 200)
         self.assertEqual(jbody(body)["progress"]["status"], "done")
         # прочитать
         status, _, body = fetch(self.base, "/api/progress")
-        self.assertIn("base-0001", jbody(body)["items"])
+        self.assertIn(lesson_id, jbody(body)["items"])
         # урок видит свою отметку
-        _, _, body = fetch(self.base, "/api/lesson/base-0001")
+        _, _, body = fetch(self.base,
+                           f"/api/lesson/{quote(lesson_id)}")
         self.assertEqual(jbody(body)["progress"]["status"], "done")
         # файл записан на диск
         saved = json.loads(self.progress_file.read_text(encoding="utf-8"))
-        self.assertIn("base-0001", saved["items"])
+        self.assertIn(lesson_id, saved["items"])
         # недопустимый статус → 400
         status, _, body = fetch(self.base, "/api/progress", "POST",
-                                {"lesson_id": "base-0001", "status": "super"})
+                                {"lesson_id": lesson_id, "status": "super"})
         self.assertEqual(status, 400)
         # снять
         status, _, body = fetch(self.base, "/api/progress", "POST",
-                                {"lesson_id": "base-0001", "status": None})
+                                {"lesson_id": lesson_id, "status": None})
         self.assertEqual(status, 200)
         self.assertTrue(jbody(body)["cleared"])
-        self.assertNotIn("base-0001", jbody(fetch(self.base, "/api/progress")[2])["items"])
+        self.assertNotIn(lesson_id, jbody(fetch(self.base, "/api/progress")[2])["items"])
 
     def test_progress_bad_requests(self):
         status, _, _ = fetch(self.base, "/api/progress", "POST", {"status": "done"})

@@ -61,11 +61,26 @@ class ScannerTests(unittest.TestCase):
         self.assertIsNotNone(lesson)
         self.assertEqual(lesson["title"], "Новый трек")
 
-    def test_express_course(self):
-        express = self.catalog["express_course"]
-        self.assertEqual([l["id"] for l in express["lessons"]], ["express-0001"])
-        self.assertIsNotNone(express["intro_url"])
-        self.assertIsNotNone(express["glossary_url"])
+    def test_express_courses_branch(self):
+        courses = self.catalog["express_courses"]
+        # порядок — по имени папки: junior → middle; новая подпапка = новый курс
+        self.assertEqual([c["id"] for c in courses],
+                         ["вайб-кодер-junior", "вайб-кодер-middle"])
+        junior = courses[0]
+        self.assertEqual(junior["title"], "Вайб-кодер: junior")
+        self.assertEqual(junior["description"], "Первый курс ветки: работа с ИИ-агентом.")
+        self.assertIn("курс ветки", junior["kicker"])
+        self.assertIsNotNone(junior["intro_url"])
+        self.assertIsNotNone(junior["glossary_url"])
+        self.assertEqual([l["id"] for l in junior["lessons"]],
+                         ["вайб-кодер-junior-0001", "вайб-кодер-junior-0002"])
+        lesson = junior["lessons"][0]
+        self.assertEqual(lesson["track"], "вайб-кодер-junior")
+        self.assertTrue(lesson["url"].startswith("/content/экспресс-курсы/"))
+        middle = courses[1]
+        self.assertIsNone(middle["glossary_url"])  # локального глоссария нет
+        self.assertEqual([l["id"] for l in middle["lessons"]],
+                         ["вайб-кодер-middle-0001"])
 
     def test_references_materials_documents_notes(self):
         ref_ids = [r["id"] for r in self.catalog["references"]]
@@ -86,11 +101,22 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(lesson["next_id"], "track-a-0003")
         first = scanner.find_lesson(self.catalog, "base-0001")
         self.assertIsNone(first["prev_id"])
+        # экспресс-курсы сшиты в общую цепочку после треков
+        border = scanner.find_lesson(self.catalog, "track-трек-в-новый-0100")
+        self.assertEqual(border["next_id"], "вайб-кодер-junior-0001")
+        between = scanner.find_lesson(self.catalog, "вайб-кодер-junior-0002")
+        self.assertEqual(between["prev_id"], "вайб-кодер-junior-0001")
+        self.assertEqual(between["next_id"], "вайб-кодер-middle-0001")
+        last = scanner.find_lesson(self.catalog, "вайб-кодер-middle-0001")
+        self.assertIsNone(last["next_id"])
 
     def test_search_finds_and_snippets(self):
         results = scanner.search_lessons(self.root, self.catalog, "ГЛОССАРИЙ")
         self.assertTrue(any(r["id"] == "track-a-0003" for r in results))
         self.assertIn("…", results[0]["snippet"])
+        express = scanner.search_lessons(self.root, self.catalog,
+                                         "уроке-вайб-кодер-middle-1")
+        self.assertTrue(any(r["id"] == "вайб-кодер-middle-0001" for r in express))
         self.assertEqual(scanner.search_lessons(self.root, self.catalog, "  "), [])
         self.assertEqual(scanner.search_lessons(self.root, self.catalog,
                                                 "несуществующее-слово-xyz"), [])
@@ -100,7 +126,8 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(counts["tracks"], 4)
         # 2 база + 1 трек А + 1 трек Б + 1 новый трек В
         self.assertEqual(counts["lessons"], 5)
-        self.assertEqual(counts["express_lessons"], 1)
+        self.assertEqual(counts["express_courses"], 2)
+        self.assertEqual(counts["express_lessons"], 3)
         self.assertEqual(counts["documents"], 1)
         self.assertEqual(counts["progress_notes"], 1)
 

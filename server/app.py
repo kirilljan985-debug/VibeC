@@ -31,7 +31,7 @@ import scanner
 from store import ProgressStore, ALLOWED_STATUS
 
 SERVER_VERSION = "VibeC/1.0"
-CONTRACT_VERSION = "1.1"
+CONTRACT_VERSION = "1.2"
 
 # текстовые типы всегда отдаём с utf-8
 TEXT_TYPES = ("text/", "application/json", "application/javascript")
@@ -337,8 +337,12 @@ async function main() {
         (first ? ` · <a href="${first.url}">открыть первый: ${first.title}</a>` : ``) +
         `</li>`;
     }).join("") +
-    `<li><strong>${catalog.express_course.title}</strong> — уроков: ${catalog.express_course.lessons.length}` +
-    (catalog.express_course.intro_url ? ` · <a href="${catalog.express_course.intro_url}">вход в курс</a>` : ``) + `</li>`;
+    (catalog.express_courses || []).map(c => {
+      const first = c.lessons[0];
+      return `<li><strong>${c.title}</strong> — уроков: ${c.lessons.length}` +
+        (c.intro_url ? ` · <a href="${c.intro_url}">вход в курс</a>` : ``) +
+        (first ? ` · <a href="${first.url}">первый урок</a>` : ``) + `</li>`;
+    }).join("");
   } catch (e) {
     document.getElementById("counts").innerHTML =
       `<span class="warn">API недоступно: ${e}</span>`;

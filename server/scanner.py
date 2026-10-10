@@ -25,7 +25,7 @@ KNOWN_TRACKS = {
                      "Понятие → практика руками → квиз → домашка Stepik"),
 }
 
-EXPRESS_DIR = "экспресс-курс-вайб-кодера"
+EXPRESS_DIR = "экспресс-курсы"  # ветка экспресс-курсов: каждая подпапка — отдельный курс
 LESSON_RE = re.compile(r"^(\d{4})-")  # имена уроков: 0001-kak-...
 
 # Статусы уроков из таблицы «Статус» в обучение/ПАМЯТЬ.md (первичный посев;
@@ -36,6 +36,7 @@ SEED_RE = re.compile(r"^\|\s*(\d{4})\b.*?\|\s*(✅|📖|⏳|❓)\s*([^|]*?)\s*\|
 REF_DESCRIPTIONS = {
     "glossary-core": "Ядерный глоссарий курса — читать после урока 0003",
     "glossary-interactive": "Интерактивный глоссарий: 101 термин, отметки «знаю / ещё учу»",
+    "glossary-express-courses": "Глоссарий ветки «Вайб-кодер»: 90 терминов по всем грейдам (junior/middle/senior)",
     "python-minimum": "Копилка понятий Python — пополняется после каждого урока трека Б",
 }
 
@@ -148,15 +149,16 @@ def _collect_track_lessons(root: Path, track: dict, seeds: dict) -> None:
         })
 
 
-def _scan_express(root: Path) -> dict:
-    """Экспресс-курс — отдельный самодостаточный курс в своей папке."""
-    course = {"id": "express", "title": "Экспресс-курс «Вайб-кодер»",
-              "description": "Быстрый ввод в работу с ИИ-агентом: 6 уроков, "
-                             "код руками не пишем", "lessons": [],
+def _scan_express_course(root: Path, course_dir: Path) -> dict:
+    """Один экспресс-курс: подпапка внутри ветки «экспресс-курсы».
+
+    id курса = имя папки, id урока = <курс>-<номер> (например
+    «вайб-кодер-junior-0001»). index.html — вход в курс; если рядом лежит
+    локальный глоссарий (*.html с «glossary» в имени), он прилагается к курсу.
+    """
+    course = {"id": course_dir.name, "title": course_dir.name,
+              "kicker": "", "description": "", "lessons": [],
               "intro_url": None, "glossary_url": None}
-    course_dir = root / EXPRESS_DIR
-    if not course_dir.is_dir():
-        return course
     for path in sorted(course_dir.iterdir()):
         m = LESSON_RE.match(path.name)
         if m and path.suffix == ".html":
@@ -164,9 +166,9 @@ def _scan_express(root: Path) -> dict:
             info = parse_lesson_html(_read(path))
             rel = _rel(path, root)
             course["lessons"].append({
-                "id": f"express-{number}",
+                "id": f"{course['id']}-{number}",
                 "number": number,
-                "track": "express",
+                "track": course["id"],
                 "track_title": course["title"],
                 "title": info["title"] or path.stem,
                 "page_title": info["page_title"],
@@ -179,11 +181,32 @@ def _scan_express(root: Path) -> dict:
                 "seed_label": "",
             })
         elif path.name == "index.html":
+            info = parse_lesson_html(_read(path))
+            course["title"] = info["title"] or course["title"]
+            course["kicker"] = info["kicker"]
+            course["description"] = info["summary"]
             course["intro_url"] = _url(_rel(path, root))
         elif "glossary" in path.name and path.suffix == ".html":
             course["glossary_url"] = _url(_rel(path, root))
     course["lessons"].sort(key=lambda l: l["number"])
+    # index.html читается позже уроков (сортировка по имени) — обновляем заголовки
+    for lesson in course["lessons"]:
+        lesson["track_title"] = course["title"]
     return course
+
+
+def _scan_express_courses(root: Path) -> list:
+    """Ветка экспресс-курсов: каждая подпапка «экспресс-курсы/» — отдельный курс.
+
+    Новая подпапка становится новым курсом без правки кода. Порядок — по имени
+    папки (junior → middle → senior идут по алфавиту).
+    """
+    branch = root / EXPRESS_DIR
+    if not branch.is_dir():
+        return []
+    courses = [_scan_express_course(root, d) for d in sorted(branch.iterdir())
+               if d.is_dir()]
+    return [c for c in courses if c["lessons"] or c["intro_url"]]
 
 
 def _scan_references(root: Path) -> list:
@@ -261,7 +284,7 @@ def scan_catalog(root: Path) -> dict:
             if track["lessons"] or folder in KNOWN_TRACKS:
                 tracks.append(track)
 
-    express = _scan_express(root)
+    express_courses = _scan_express_courses(root)
     references = _scan_references(root)
     materials = _scan_materials(root)
     documents, progress_notes = _scan_documents(root)
@@ -269,11 +292,11 @@ def scan_catalog(root: Path) -> dict:
     track_lessons = sum(len(t["lessons"]) for t in tracks)
     return {
         "api": "vibec",
-        "version": 1,
+        "version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "content_root": str(root),
         "tracks": tracks,
-        "express_course": express,
+        "express_courses": express_courses,
         "references": references,
         "materials": materials,
         "documents": documents,
@@ -281,7 +304,8 @@ def scan_catalog(root: Path) -> dict:
         "counts": {
             "tracks": len(tracks),
             "lessons": track_lessons,
-            "express_lessons": len(express["lessons"]),
+            "express_courses": len(express_courses),
+            "express_lessons": sum(len(c["lessons"]) for c in express_courses),
             "references": len(references),
             "materials": len(materials),
             "documents": len(documents),
@@ -291,11 +315,12 @@ def scan_catalog(root: Path) -> dict:
 
 
 def all_lessons(catalog: dict) -> list:
-    """Все уроки одним списком в порядке прохождения: треки → экспресс-курс."""
+    """Все уроки одним списком: треки, затем экспресс-курсы по порядку папок."""
     lessons = []
     for track in catalog["tracks"]:
         lessons.extend(track["lessons"])
-    lessons.extend(catalog["express_course"]["lessons"])
+    for course in catalog["express_courses"]:
+        lessons.extend(course["lessons"])
     return lessons
 
 
