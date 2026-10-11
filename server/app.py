@@ -32,7 +32,7 @@ import scanner
 from store import ProgressStore, ALLOWED_STATUS
 
 SERVER_VERSION = "VibeC/1.0"
-CONTRACT_VERSION = "1.3"
+CONTRACT_VERSION = "1.4"
 
 # вкладка портала считается открытой, если фронт обращался к серверу
 # недавно (он опрашивает каталог раз в минуту, пока вкладка активна)
@@ -427,10 +427,36 @@ def _probe_vibec(url: str) -> dict | None:
         return None
 
 
-def _existing_tab_open(meta: dict) -> bool:
-    """Вкладка портала уже открыта (или сервер только что стартовал и её открывает)."""
-    return bool(meta.get("front_alive")) or \
-        meta.get("uptime_seconds", float("inf")) < START_GRACE
+# Заголовок окна браузера = заголовок активной вкладки. Фронт всегда кладёт
+# «VibeC» в document.title («Уроки · VibeC»), поэтому окно портала ищем по нему.
+_FOCUS_SCRIPT = r'''
+Add-Type -Namespace Native -Name Win -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd); [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);' | Out-Null
+$w = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -match 'VibeC' -and $_.MainWindowTitle -notmatch '^VibeC$' } | Select-Object -First 1
+if ($w) {
+  $h = $w.MainWindowHandle
+  if ([Native.Win]::IsIconic($h)) { [Native.Win]::ShowWindow($h, 9) | Out-Null }
+  [Native.Win]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)
+  [Native.Win]::SetForegroundWindow($h) | Out-Null
+  [Native.Win]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+  Write-Output 'FOCUSED'
+} else { Write-Output 'NONE' }
+'''
+
+
+def _focus_portal_window() -> bool:
+    """Поднять и сфокусировать окно браузера с вкладкой VibeC (в т.ч. свёрнутое)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+             "Bypass", "-Command", _FOCUS_SCRIPT],
+            capture_output=True, text=True, timeout=10,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return "FOCUSED" in (result.stdout or "")
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def main(argv=None) -> None:
@@ -461,12 +487,15 @@ def main(argv=None) -> None:
     # на Windows занятый порт может не дать ошибку привязки — проверяем до неё
     meta = _probe_vibec(url)
     if meta is not None:
-        if _existing_tab_open(meta):
-            _print("VibeC уже запущен и открыт в браузере — новую вкладку не открываю.")
-        else:
-            _print("VibeC уже запущен — открываю страницу в браузере.")
-            if auto_open:
-                webbrowser.open(url)
+        if meta.get("uptime_seconds", float("inf")) < START_GRACE:
+            _print("VibeC только что запущен — браузер уже открывается.")
+            return
+        if _focus_portal_window():
+            _print("VibeC уже открыт — вернул окно браузера на передний план.")
+            return
+        _print("VibeC уже запущен, окна с порталом не видно — открываю страницу.")
+        if auto_open:
+            webbrowser.open(url)
         return
     try:
         server = create_server(args.host, args.port, content_root,

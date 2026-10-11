@@ -180,13 +180,13 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(jbody(body)["front_alive"])
         self.server.last_request = time.time()  # вернуть в норму
 
-    def test_existing_tab_decision(self):
-        # вкладка жива → не открывать вторую
-        self.assertTrue(app._existing_tab_open({"front_alive": True, "uptime_seconds": 999}))
-        # сервер только что стартовал — вкладка ещё грузится, ждать её
-        self.assertTrue(app._existing_tab_open({"front_alive": False, "uptime_seconds": 3}))
-        # сервер давно работает, но запросов нет → вкладки нет, открываем браузер
-        self.assertFalse(app._existing_tab_open({"front_alive": False, "uptime_seconds": 600}))
+    def test_focus_script_targets_portal_windows_only(self):
+        # критерии поиска окна зашиты в PowerShell-скрипт: VibeC в заголовке,
+        # но окно папки с именем «VibeC» (заголовок ровно VibeC) не считается
+        self.assertIn("-match 'VibeC'", app._FOCUS_SCRIPT)
+        self.assertIn("-notmatch '^VibeC$'", app._FOCUS_SCRIPT)
+        self.assertIn("IsIconic", app._FOCUS_SCRIPT)  # свёрнутое окно разворачиваем
+        self.assertIn("SetForegroundWindow", app._FOCUS_SCRIPT)
 
     def test_unknown_endpoint_404(self):
         status, _, _ = fetch(self.base, "/api/nope")
