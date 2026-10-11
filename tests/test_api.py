@@ -164,6 +164,29 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(meta["content_root_exists"])
         self.assertFalse(meta["front_present"])  # front/ пуст — заглушка
         self.assertEqual(meta["counts"]["tracks"], 4)
+        self.assertGreaterEqual(meta["uptime_seconds"], 0)
+        # только что был запрос (этот самый класс постоянно дёргает API),
+        # значит вкладка фронта «жива» с точки зрения сервера
+        self.assertTrue(meta["front_alive"])
+
+    def test_front_alive_ages_out(self):
+        import time
+        self.server.last_request -= 300  # имитация: вкладка молчит 5 минут
+        _, _, body = fetch(self.base, "/api/meta")
+        meta = jbody(body)
+        self.assertFalse(meta["front_alive"])
+        # но сам этот запрос обновил метку — следующий снова «живой»
+        _, _, body = fetch(self.base, "/api/meta")
+        self.assertTrue(jbody(body)["front_alive"])
+        self.server.last_request = time.time()  # вернуть в норму
+
+    def test_existing_tab_decision(self):
+        # вкладка жива → не открывать вторую
+        self.assertTrue(app._existing_tab_open({"front_alive": True, "uptime_seconds": 999}))
+        # сервер только что стартовал — вкладка ещё грузится, ждать её
+        self.assertTrue(app._existing_tab_open({"front_alive": False, "uptime_seconds": 3}))
+        # сервер давно работает, но запросов нет → вкладки нет, открываем браузер
+        self.assertFalse(app._existing_tab_open({"front_alive": False, "uptime_seconds": 600}))
 
     def test_unknown_endpoint_404(self):
         status, _, _ = fetch(self.base, "/api/nope")

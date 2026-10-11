@@ -32,7 +32,14 @@ import scanner
 from store import ProgressStore, ALLOWED_STATUS
 
 SERVER_VERSION = "VibeC/1.0"
-CONTRACT_VERSION = "1.2"
+CONTRACT_VERSION = "1.3"
+
+# вкладка портала считается открытой, если фронт обращался к серверу
+# недавно (он опрашивает каталог раз в минуту, пока вкладка активна)
+FRONT_ALIVE_WINDOW = 120
+# только что запущенному серверу даём время открыть браузер: в этот срок
+# повторный запуск не открывает вторую вкладку, даже если запросов ещё не было
+START_GRACE = 15
 
 # текстовые типы всегда отдаём с utf-8
 TEXT_TYPES = ("text/", "application/json", "application/javascript")
@@ -76,6 +83,7 @@ class VibeCServer(ThreadingHTTPServer):
         self.content_root = Path(content_root)
         self.front_dir = Path(front_dir)
         self.store = store
+        self.started = time.time()
         self.last_request = time.time()
         self.idle_exit_seconds = idle_exit_seconds
         if idle_exit_seconds > 0:
@@ -202,12 +210,17 @@ class VibeCRequestHandler(BaseHTTPRequestHandler):
     def _api_meta(self) -> None:
         root = self.server.content_root
         catalog = scanner.scan_catalog(root) if root.is_dir() else None
+        # возраст последнего запроса считаем до ответа: сам запрос его обновит
+        age = time.time() - self.server.last_request
+        uptime = time.time() - self.server.started
         self._send_json({
             "name": "VibeC", "server": SERVER_VERSION,
             "contract": f"ИНТЕРФЕЙС.md v{CONTRACT_VERSION}",
             "content_root": str(root),
             "content_root_exists": root.is_dir(),
             "front_present": (self.server.front_dir / "index.html").is_file(),
+            "uptime_seconds": round(uptime, 1),
+            "front_alive": age < FRONT_ALIVE_WINDOW,
             "counts": catalog["counts"] if catalog else None,
         })
 
@@ -403,14 +416,21 @@ def create_server(host: str, port: int, content_root: Path,
                        idle_exit_seconds=idle_exit_seconds)
 
 
-def _is_vibec_alive(url: str) -> bool:
-    """Другой экземпляр VibeC уже отвечает на этом адресе?"""
+def _probe_vibec(url: str) -> dict | None:
+    """Другой экземпляр VibeC уже отвечает на этом адресе? Возвращает его мету."""
     try:
         import urllib.request
         with urllib.request.urlopen(url + "api/meta", timeout=2) as resp:
-            return json.loads(resp.read().decode("utf-8")).get("name") == "VibeC"
+            data = json.loads(resp.read().decode("utf-8"))
+            return data if isinstance(data, dict) and data.get("name") == "VibeC" else None
     except (OSError, ValueError):
-        return False
+        return None
+
+
+def _existing_tab_open(meta: dict) -> bool:
+    """Вкладка портала уже открыта (или сервер только что стартовал и её открывает)."""
+    return bool(meta.get("front_alive")) or \
+        meta.get("uptime_seconds", float("inf")) < START_GRACE
 
 
 def main(argv=None) -> None:
@@ -439,10 +459,14 @@ def main(argv=None) -> None:
 
     idle_seconds = max(0, config.IDLE_EXIT_MINUTES) * 60
     # на Windows занятый порт может не дать ошибку привязки — проверяем до неё
-    if _is_vibec_alive(url):
-        _print("VibeC уже запущен — открываю существующий экземпляр.")
-        if auto_open:
-            webbrowser.open(url)
+    meta = _probe_vibec(url)
+    if meta is not None:
+        if _existing_tab_open(meta):
+            _print("VibeC уже запущен и открыт в браузере — новую вкладку не открываю.")
+        else:
+            _print("VibeC уже запущен — открываю страницу в браузере.")
+            if auto_open:
+                webbrowser.open(url)
         return
     try:
         server = create_server(args.host, args.port, content_root,
