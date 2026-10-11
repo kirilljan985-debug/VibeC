@@ -29,6 +29,10 @@ HOST = os.environ.get("VIBEC_HOST", "127.0.0.1")
 PORT = int(os.environ.get("VIBEC_PORT", "8765"))
 OPEN_BROWSER = os.environ.get("VIBEC_OPEN_BROWSER", "") == "1"
 
+# Автостоп: сервер завершается сам после N минут без запросов (0 — никогда).
+# У exe консоль скрыта, поэтому бездействующий экземпляр не должен висеть вечно.
+IDLE_EXIT_MINUTES = int(os.environ.get("VIBEC_IDLE_EXIT_MINUTES", "30"))
+
 
 def content_root() -> Path:
     """Актуальный корень контента: env-переменная сильнее значения по умолчанию."""

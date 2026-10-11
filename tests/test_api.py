@@ -45,7 +45,8 @@ class ApiTests(unittest.TestCase):
         cls.progress_file = tmp / "data" / "progress.json"
         cls.front_dir = tmp / "front"  # пусто — сервер должен отдать заглушку
         cls.server = app.create_server("127.0.0.1", 0, cls.content_root,
-                                       cls.front_dir, cls.progress_file)
+                                       cls.front_dir, cls.progress_file,
+                                       idle_exit_seconds=0)
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         import threading
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -56,6 +57,19 @@ class ApiTests(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
         cls._tmp.cleanup()
+
+    def test_idle_watchdog_stops_server(self):
+        # без запросов сервер должен сам завершить serve_forever (для exe без консоли)
+        server = app.create_server("127.0.0.1", 0, self.content_root,
+                                   self.front_dir, self.progress_file,
+                                   idle_exit_seconds=1)
+        import threading
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        thread.join(timeout=8)
+        server.server_close()
+        self.assertFalse(thread.is_alive(),
+                         "watchdog не остановил сервер по бездействию")
 
     # ------------------------------------------------------------------ API
 

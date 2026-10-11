@@ -9,7 +9,7 @@
 
 ## Запуск
 
-**Ярлык «VibeC» на рабочем столе** (иконка VC) — поднимет сервер и откроет браузер на `http://127.0.0.1:8765/`. Ярлык указывает на `VibeC.exe` в корне репозитория (собран PyInstaller'ом, пересборка: `python -m PyInstaller --noconfirm --onefile --name VibeC --icon assets/vibec.ico --paths server server/app.py`).
+**Ярлык «VibeC» на рабочем столе** (иконка VC) — поднимет сервер и откроет браузер на `http://127.0.0.1:8765/`. Консоль при этом **не появляется**: exe собран в оконном режиме. Сервер сам остановится после 30 минут бездействия (фронт открыт = жив; `VIBEC_IDLE_EXIT_MINUTES=0` отключает автостоп). Повторный запуск при уже работающем сервере просто откроет браузер — конфликта портов нет. Если exe молча не стартовал — причина в `data/last-error.log`. Пересборка: `python -m PyInstaller --noconfirm --onefile --windowed --name VibeC --icon assets/vibec.ico --paths server server/app.py`.
 
 Или из исходников: двойной клик по **`запуск.bat`**, либо:
 

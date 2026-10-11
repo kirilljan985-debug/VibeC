@@ -19,6 +19,7 @@ import json
 import mimetypes
 import sys
 import threading
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -37,6 +38,24 @@ CONTRACT_VERSION = "1.2"
 TEXT_TYPES = ("text/", "application/json", "application/javascript")
 
 
+def _print(*args) -> None:
+    """Печать, безопасная для оконного exe (sys.stdout там — None)."""
+    if sys.stdout is not None:
+        try:
+            print(*args)
+        except OSError:
+            pass
+
+
+def _write_error_log(text: str) -> None:
+    """Последний краш exe — в файл: при скрытой консоли иначе его не увидеть."""
+    try:
+        config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        (config.DATA_DIR / "last-error.log").write_text(text, encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _content_type(path: Path) -> str:
     guessed = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     if guessed.startswith(TEXT_TYPES):
@@ -46,15 +65,30 @@ def _content_type(path: Path) -> str:
 
 class VibeCServer(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # Windows: SO_REUSEADDR даёт привязаться к чужому занятому порту «молча» —
+    # второй экземпляр висит без запросов. Порт занят = честная ошибка привязки.
+    allow_reuse_address = False
 
     def __init__(self, address, handler, content_root: Path,
-                 front_dir: Path, store: ProgressStore):
+                 front_dir: Path, store: ProgressStore,
+                 idle_exit_seconds: int = 0):
         super().__init__(address, handler)
         self.content_root = Path(content_root)
         self.front_dir = Path(front_dir)
         self.store = store
-        self.started_at = threading.Event()  # выставляется после bind
+        self.last_request = time.time()
+        self.idle_exit_seconds = idle_exit_seconds
+        if idle_exit_seconds > 0:
+            threading.Thread(target=self._idle_watchdog, daemon=True).start()
+
+    def _idle_watchdog(self) -> None:
+        """Скрытая консоль = некому нажать Ctrl+C: гасим сервер по бездействию."""
+        while True:
+            time.sleep(max(0.5, min(30, self.idle_exit_seconds / 2)))
+            if time.time() - self.last_request > self.idle_exit_seconds:
+                _print("Бездействие — сервер останавливается.")
+                self.shutdown()
+                return
 
 
 class VibeCRequestHandler(BaseHTTPRequestHandler):
@@ -63,12 +97,15 @@ class VibeCRequestHandler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------- утилиты
 
     def log_message(self, fmt, *args):  # лог ASCII-безопасный: консоль Windows
+        if sys.stderr is None:  # оконный exe: консоли нет — запросы не логируем
+            return
         msg = fmt % args
         sys.stderr.write(f"{self.address_string()} [{self.log_date_time_string()}] "
                          f"{msg.encode('ascii', 'backslashreplace').decode('ascii')}\n")
 
     def _send(self, status: int, body: bytes, content_type: str,
               cache: str = "no-store") -> None:
+        self.server.last_request = time.time()  # признак жизни для автостопа
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -358,10 +395,22 @@ main();
 # --------------------------------------------------------------------- запуск
 
 def create_server(host: str, port: int, content_root: Path,
-                  front_dir: Path, progress_file: Path) -> VibeCServer:
+                  front_dir: Path, progress_file: Path,
+                  idle_exit_seconds: int = 0) -> VibeCServer:
     store = ProgressStore(progress_file)
     return VibeCServer((host, port), VibeCRequestHandler,
-                       content_root, front_dir, store)
+                       content_root, front_dir, store,
+                       idle_exit_seconds=idle_exit_seconds)
+
+
+def _is_vibec_alive(url: str) -> bool:
+    """Другой экземпляр VibeC уже отвечает на этом адресе?"""
+    try:
+        import urllib.request
+        with urllib.request.urlopen(url + "api/meta", timeout=2) as resp:
+            return json.loads(resp.read().decode("utf-8")).get("name") == "VibeC"
+    except (OSError, ValueError):
+        return False
 
 
 def main(argv=None) -> None:
@@ -381,29 +430,58 @@ def main(argv=None) -> None:
         pass
 
     content_root = args.root or config.content_root()
-    server = create_server(args.host, args.port, content_root,
-                           config.FRONT_DIR, config.PROGRESS_FILE)
-
     url = f"http://{args.host}:{args.port}/"
-    print(f"VibeC {SERVER_VERSION} · контракт ИНТЕРФЕЙС.md v{CONTRACT_VERSION}")
-    print(f"Папка обучения : {content_root}"
-          + ("" if content_root.is_dir() else "  [НЕ НАЙДЕНА — каталог будет пуст!]"))
-    print(f"Адрес          : {url}")
-    print("Остановка      : Ctrl+C")
 
     # из exe браузер открываем по умолчанию (ярлык на рабочем столе);
     # при запуске из исходников — только через VIBEC_OPEN_BROWSER=1 или запуск.bat
     auto_open = (not args.no_browser) and (config.OPEN_BROWSER
                                            or getattr(sys, "frozen", False))
+
+    idle_seconds = max(0, config.IDLE_EXIT_MINUTES) * 60
+    # на Windows занятый порт может не дать ошибку привязки — проверяем до неё
+    if _is_vibec_alive(url):
+        _print("VibeC уже запущен — открываю существующий экземпляр.")
+        if auto_open:
+            webbrowser.open(url)
+        return
+    try:
+        server = create_server(args.host, args.port, content_root,
+                               config.FRONT_DIR, config.PROGRESS_FILE,
+                               idle_exit_seconds=idle_seconds)
+    except OSError:
+        _write_error_log(f"Порт {args.port} занят другим приложением "
+                         f"(запуск {time.strftime('%Y-%m-%d %H:%M:%S')}).\n")
+        _print(f"Порт {args.port} занят другим приложением — VibeC не запущен. "
+               f"Подробности: data/last-error.log")
+        raise SystemExit(1)
+
+    _print(f"VibeC {SERVER_VERSION} · контракт ИНТЕРФЕЙС.md v{CONTRACT_VERSION}")
+    _print(f"Папка обучения : {content_root}"
+           + ("" if content_root.is_dir() else "  [НЕ НАЙДЕНА — каталог будет пуст!]"))
+    _print(f"Адрес          : {url}")
+    _print("Остановка      : Ctrl+C"
+           + (f" или автостоп после {config.IDLE_EXIT_MINUTES} мин бездействия"
+              if idle_seconds else ""))
+
     if auto_open:
         threading.Timer(0.8, webbrowser.open, args=(url,)).start()
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nСервер остановлен.")
+        _print("\nСервер остановлен.")
+    finally:
         server.server_close()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception:  # оконный exe молчит — краш фиксируем в файл
+        import traceback
+        _write_error_log(traceback.format_exc())
+        if sys.stdout is not None:
+            traceback.print_exc()
+        raise SystemExit(1)
