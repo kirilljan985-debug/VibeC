@@ -126,7 +126,6 @@
   function renderDashboard(page) {
     if (page === "lessons") return heading("Уроки", "Каждый урок — ещё один шаг от идеи к работающему проекту.", "ОСНОВНОЙ КУРС") + filters() + renderTracks(true);
     if (page === "express") return heading("Экспресс-курсы", "Ветка «Вайб-кодер»: junior, middle, senior — проходите грейд за грейдом.", "БЫСТРЫЙ СТАРТ") + filters() + renderExpress();
-    if (page === "gamedev") return heading("Разработка игры", "Документ раздела открыт ниже — обновите страницу, если он не подгрузился.", "РАЗДЕЛ КУРСА") + `<pre class="document-text">Открываем документ раздела…</pre>`;
     if (page === "resources") return heading("Всё под рукой", "Справочники, материалы курса и ваш дневник обучения.", "БИБЛИОТЕКА КУРСА") + renderResources();
     const lessons = allLessons(), done = completed(lessons);
     const resume = lessons.find(lesson => ["reading", "in-progress"].includes(effectiveStatus(lesson))) || lessons.find(lesson => effectiveStatus(lesson) !== "done");
@@ -141,12 +140,49 @@
       `<section class="section"><div class="section-head"><h2><span class="section-number">03</span>Разработка игры</h2><a class="text-link" href="#gamedev">Открыть раздел →</a></div>${renderGameDevPanel()}</section>` +
       `<section class="section"><div class="section-head"><h2><span class="section-number">04</span>Справочники и документы</h2><a class="text-link" href="#resources">Открыть всё →</a></div>${renderResources()}</section>`;
   }
-  function viewerHTML(item, lesson = false) {
+  function viewerHTML(item, lesson = false, { back = "resources", context = "МАТЕРИАЛ КУРСА" } = {}) {
     const url = safeURL(item.url);
     if (!url) throw new Error("У материала нет доступной ссылки.");
     const markdown = /\.md$/i.test(new URL(url).pathname);
     const isExpress = lesson && (state.catalog?.express_courses || []).some(course => course.id === item.track);
-    return `<div class="viewer-toolbar"><a class="button subtle" href="#${lesson ? (isExpress ? "express" : "lessons") : "resources"}">← ${lesson ? (isExpress ? "К экспресс-курсам" : "К урокам") : "К материалам"}</a>${lesson ? completionButton(item, true) : ""}<a class="button subtle" href="${esc(url)}" target="_blank" rel="noopener">Открыть отдельно ↗</a></div><div class="viewer-heading"><div class="eyebrow">${esc(item.track_title || "МАТЕРИАЛ КУРСА")}</div><h1>${esc(item.title || item.name)}</h1>${item.kicker ? `<p>${esc(item.kicker)}</p>` : ""}${lesson && !item.progress?.status && item.seed_label ? `<p class="seed-note">Преподаватель: ${esc(item.seed_label)}</p>` : ""}</div>${markdown ? `<pre class="document-text" id="document-text">Загружаем документ…</pre>` : `<iframe class="viewer-frame" src="${esc(url)}" title="${esc(item.title || item.name)}"></iframe>`}${lesson ? `<div class="viewer-bottom">${item.prev_id ? `<a class="button subtle" href="${lessonHref(item.prev_id)}">← Предыдущий урок</a>` : "<span></span>"}${item.next_id ? `<a class="button subtle" href="${lessonHref(item.next_id)}">Следующий урок →</a>` : `<span class="small-tag">Последний урок курса</span>`}</div>` : ""}`;
+    return `<div class="viewer-toolbar"><a class="button subtle" href="#${lesson ? (isExpress ? "express" : "lessons") : back}">← ${lesson ? (isExpress ? "К экспресс-курсам" : "К урокам") : back === "home" ? "К обзору курса" : back === "lessons" ? "К урокам" : "К материалам"}</a>${lesson ? completionButton(item, true) : ""}<a class="button subtle" href="${esc(url)}" target="_blank" rel="noopener">${markdown ? "Открыть исходный документ" : "Открыть отдельно"} ↗</a></div><div class="viewer-heading"><div class="eyebrow">${esc(item.track_title || context)}</div>${markdown ? "" : `<h1>${esc(item.title || item.name)}</h1>`}${item.kicker ? `<p>${esc(item.kicker)}</p>` : ""}${lesson && !item.progress?.status && item.seed_label ? `<p class="seed-note">Преподаватель: ${esc(item.seed_label)}</p>` : ""}</div>${markdown ? `<div class="document-loading" id="document-text" role="status"><span class="spinner"></span>Загружаем документ…</div>` : `<iframe class="viewer-frame" src="${esc(url)}" title="${esc(item.title || item.name)}"></iframe>`}${lesson ? `<div class="viewer-bottom">${item.prev_id ? `<a class="button subtle" href="${lessonHref(item.prev_id)}">← Предыдущий урок</a>` : "<span></span>"}${item.next_id ? `<a class="button subtle" href="${lessonHref(item.next_id)}">Следующий урок →</a>` : `<span class="small-tag">Последний урок курса</span>`}</div>` : ""}`;
+  }
+  function documentLink(url) {
+    if (url.origin !== location.origin || !url.pathname.startsWith("/content/")) return { href: url.href, external: true };
+    const samePath = candidate => {
+      const safe = safeURL(candidate);
+      return safe && new URL(safe).pathname === url.pathname;
+    };
+    const lesson = allLessons().find(item => samePath(item.url));
+    if (lesson) return { href: lessonHref(lesson.id) };
+    if (samePath(state.catalog.game_dev?.url)) return { href: "#gamedev" };
+    for (const [group, , , items] of resourceGroups()) {
+      const item = items.find(item => samePath(item.url));
+      if (item) return { href: `#resource/${encodeURIComponent(`${group}:${item.file || item.id}`)}` };
+    }
+    for (const track of state.catalog.tracks || []) {
+      const file = (track.files || []).find(item => samePath(item.url));
+      if (file) return { href: `#resource/${encodeURIComponent(`trackfile:${file.file}`)}` };
+    }
+    // Документы, на которые ссылаются материалы, читаются через уже существующую статику.
+    if (/\.md$/i.test(url.pathname)) return { href: `#document/${encodeURIComponent(url.pathname + url.search)}` };
+    if (url.pathname.endsWith("/")) return null;
+    return { href: url.href, external: true };
+  }
+  function showDocument(text, item) {
+    const target = $("#document-text");
+    if (!target) return;
+    if (!window.VibeCMarkdown) {
+      target.className = "document-text";
+      target.removeAttribute("role");
+      target.textContent = text;
+      return;
+    }
+    const rendered = window.VibeCMarkdown.render(text, { baseURL: safeURL(item.url), resolveLink: documentLink });
+    const sections = rendered.headings.filter(heading => heading.level > 1);
+    const toc = sections.length ? `<aside class="document-toc"><details ${matchMedia("(min-width: 1100px)").matches ? "open" : ""}><summary>В этом документе <span>${sections.length}</span></summary><nav aria-label="Содержание документа">${sections.map(heading => `<a href="#${esc(heading.id)}" data-document-anchor="${esc(heading.id)}" class="toc-level-${heading.level}">${esc(heading.text)}</a>`).join("")}</nav></details></aside>` : "";
+    const title = rendered.headings.some(heading => heading.level === 1) ? "" : `<h1 tabindex="-1">${esc(item.title || item.name || "Документ")}</h1>`;
+    target.outerHTML = `<div class="document-layout${sections.length ? " has-toc" : ""}"><article class="document-prose" aria-label="Текст документа"><div class="document-meta"><span>Документ курса</span><span>Около ${rendered.readingMinutes} мин на чтение</span></div>${title}${rendered.html || '<p class="empty">Документ пока пуст.</p>'}<div class="document-end">Конец документа <button type="button" data-action="document-top">Вернуться к началу ↑</button></div></article>${toc}</div>`;
   }
   function findResource(id) {
     // служебные страницы курса ветки «экспресс-курсы»: express-intro:<курс>, express-glossary:<курс>
@@ -185,13 +221,16 @@
     searchController?.abort();
     const { page, id } = route();
     state.resource = null;
-    const section = ["home", "lessons", "express", "gamedev", "resources"].includes(page) ? page : page === "resource" ? "resources" : page === "lesson" ? "lessons" : "";
+    let section = ["home", "lessons", "express", "gamedev", "resources"].includes(page) ? page : "";
+    if (page === "document") section = "resources";
+    if (page === "resource") section = id.startsWith("trackfile:") ? "lessons" : "resources";
+    if (page === "lesson") section = "lessons";
     document.querySelectorAll("[data-nav]").forEach(link => {
       const active = link.dataset.nav === section;
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
     });
-    const pageName = ({ home: "Обзор", lessons: "Уроки", express: "Экспресс-курсы", gamedev: "Разработка игры", resources: "Библиотека", lesson: "Урок", resource: "Материал", search: "Поиск" })[page] || "Страница";
+    const pageName = ({ home: "Обзор", lessons: "Уроки", express: "Экспресс-курсы", gamedev: "Разработка игры", resources: "Библиотека", lesson: "Урок", resource: "Материал", document: "Документ", search: "Поиск" })[page] || "Страница";
     $("#breadcrumb").innerHTML = `Мой курс <span>/</span> ${pageName}`;
     document.title = `${pageName} · VibeC`;
     if (page === "search") $("#search").value = id;
@@ -204,9 +243,9 @@
         const game = state.catalog.game_dev;
         if (!game) { setContent(heading("Разработка игры", "Раздел появится, когда в папке обучения будет создан файл раздела.", "РАЗДЕЛ КУРСА") + `<div class="empty">Документ раздела пока не создан.</div>`); return; }
         document.title = `${game.title} · VibeC`;
-        setContent(heading("Разработка игры", "Сопровождаемая разработка реальной игры через агентов: фазы, кросс-ревью, приёмка. Актуальный статус фаз — в документе.", "РАЗДЕЛ КУРСА") + `<pre class="document-text" id="document-text">Загружаем документ…</pre>`);
+        setContent(viewerHTML(game, false, { back: "home", context: "РАЗРАБОТКА ИГРЫ" }));
         const text = await request(safeURL(game.url), { raw: true });
-        if (version === routeVersion && $("#document-text")) $("#document-text").textContent = text;
+        if (version === routeVersion) showDocument(text, game);
         return;
       }
       if (page === "lesson") {
@@ -223,15 +262,16 @@
         setContent(viewerHTML(item, true));
         return;
       }
-      if (page === "resource") {
-        const item = findResource(id);
+      if (page === "resource" || page === "document") {
+        const item = page === "document" ? { url: id, title: decodeURIComponent(id.split("/").pop()).replace(/\.md$/i, "") } : findResource(id);
         if (!item) throw new Error("Материал не найден. Возможно, он был удалён из курса.");
+        if (page === "document" && (!safeURL(item.url) || !/\.md$/i.test(new URL(safeURL(item.url)).pathname))) throw new Error("Недоступный документ.");
         state.resource = item;
-        setContent(viewerHTML(item));
+        setContent(viewerHTML(item, false, { back: id.startsWith("trackfile:") ? "lessons" : "resources" }));
         document.title = `${item.title || item.name} · VibeC`;
         if ($("#document-text")) {
           const text = await request(safeURL(item.url), { raw: true });
-          if (version === routeVersion && $("#document-text")) $("#document-text").textContent = text;
+          if (version === routeVersion) showDocument(text, item);
         }
         return;
       }
@@ -303,7 +343,7 @@
   function updateCompletionUI() {
     const focusedButton = document.activeElement?.dataset.action === "complete" ? document.activeElement.dataset.id : null;
     const current = route();
-    if (["home", "lessons", "express", "gamedev", "resources"].includes(current.page)) setContent(renderDashboard(current.page));
+    if (["home", "lessons", "express", "resources"].includes(current.page)) setContent(renderDashboard(current.page));
     else if (current.page === "lesson" && state.resource) {
       const button = content.querySelector('[data-action="complete"]');
       if (button) button.outerHTML = completionButton(state.resource, true);
@@ -338,6 +378,19 @@
     } finally { ++progressRevision; state.pending.delete(id); updateCompletionUI(); }
   }
   document.addEventListener("click", event => {
+    const anchor = event.target.closest("[data-document-anchor]");
+    if (anchor) {
+      event.preventDefault();
+      const target = document.getElementById(anchor.dataset.documentAnchor);
+      target?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+      target?.focus({ preventScroll: true });
+      return;
+    }
+    if (event.target.closest("[data-unavailable-link]")) {
+      event.preventDefault();
+      toast("Эта ссылка недоступна в портале.");
+      return;
+    }
     if (event.target.closest(".skip-link")) {
       event.preventDefault();
       $("#main").focus();
@@ -345,6 +398,11 @@
     }
     const button = event.target.closest("[data-action]");
     if (!button) return;
+    if (button.dataset.action === "document-top") {
+      const first = content.querySelector(".document-prose h1, .document-prose h2") || content.querySelector(".document-prose");
+      first?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+      first?.focus({ preventScroll: true });
+    }
     if (button.dataset.action === "complete") toggleCompletion(button.dataset.id);
     if (button.dataset.action === "reload") loadCatalog();
     if (button.dataset.action === "filter") {

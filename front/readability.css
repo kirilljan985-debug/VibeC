@@ -1,0 +1,151 @@
+@charset "UTF-8";
+
+/* Текст оболочки портала. Эти стили не попадают в iframe уроков и справочников. */
+h1 { letter-spacing: -.8px; }
+.page-heading p, .hero p { font-size: 15px; line-height: 1.75; }
+.hero p { max-width: 65ch; }
+.brand-caption { font-size: 11px; line-height: 1.5; }
+.sidebar nav a { font-size: 14px; line-height: 1.5; }
+.nav-caption { font-size: 11px; }
+.course-note, .course-note p { font-size: 12px; }
+.profile { font-size: 14px; }
+.profile span:not(.avatar) { font-size: 12px; }
+.breadcrumb, .search-form input { font-size: 13px; }
+.eyebrow { font-size: 11px; letter-spacing: 1.6px; }
+.small-tag, .hero-side > span, .hero-side small { font-size: 12px; }
+.stat small { font-size: 13px; line-height: 1.5; }
+.section-head p, .text-link { font-size: 14px; }
+.section-head p { line-height: 1.65; }
+.track h3 { font-size: 18px; line-height: 1.45; min-height: 0; }
+.track-description { font-size: 14px; line-height: 1.75; min-height: 0; }
+.progress-meta, .track summary { font-size: 12px; line-height: 1.6; }
+.lesson-row { padding: 14px 12px; }
+.lesson-title { font-size: 14px; line-height: 1.55; }
+.lesson-kicker { font-size: 12px; line-height: 1.6; margin-top: 6px; }
+.lesson-number { font-size: 12px; line-height: 1.6; margin-top: 2px; }
+.badge { font-size: 11px; line-height: 1.6; }
+.badges { gap: 6px; margin-top: 8px; }
+.completion { width: 30px; height: 30px; }
+.express-panel p { font-size: 14px; line-height: 1.8; max-width: 72ch; }
+.express-panel .express-kicker { color: #bbc7e4; font-size: 12px; margin: 12px 0 4px; }
+.express-panel + .express-lessons { margin-bottom: 38px; }
+.express-links { line-height: 1.65; }
+.track-files { flex-direction: column; gap: 10px; margin: 0 0 22px; }
+.track-files .text-link { white-space: normal; overflow-wrap: anywhere; }
+.resource strong { font-size: 14px; line-height: 1.55; }
+.resource small { font-size: 12px; line-height: 1.65; }
+.group-label { font-size: 12px; line-height: 1.6; letter-spacing: 1px; }
+.filter-tabs button { font-size: 12px; padding: 7px 14px; }
+.button { font-size: 13px; line-height: 1.5; }
+.empty { font-size: 14px; line-height: 1.8; }
+.viewer-heading p, .seed-note { font-size: 14px; line-height: 1.7; max-width: 78ch; }
+.search-result p { font-size: 15px; line-height: 1.8; }
+.search-result small { font-size: 12px; }
+.search-result h2 { margin-top: 7px; }
+.search-result .text-link { line-height: 1.55; }
+footer { font-size: 12px; line-height: 1.6; }
+
+/* Страница чтения: сам документ и оглавление. */
+.document-loading { display: flex; align-items: center; gap: 12px; padding: 60px 24px; color: var(--muted); }
+.document-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-items: start; }
+.document-layout.has-toc { grid-template-columns: minmax(0, 1fr) 220px; }
+.document-prose {
+  min-width: 0;
+  max-width: 940px;
+  width: 100%;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: clamp(24px, 3.5vw, 48px);
+  color: #d5dbe8;
+  font-size: 16px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+.document-prose > * { max-width: 720px; margin-left: auto; margin-right: auto; }
+.document-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+.document-prose h1, .document-prose h2, .document-prose h3,
+.document-prose h4, .document-prose h5, .document-prose h6 {
+  color: var(--text);
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: -.3px;
+  scroll-margin-top: 28px;
+}
+.document-prose h1 { font-size: clamp(26px, 2.6vw, 34px); margin-bottom: 26px; }
+.document-prose h2 { font-size: 23px; margin-top: 40px; margin-bottom: 16px; padding-top: 24px; border-top: 1px solid var(--line); }
+.document-prose h3 { font-size: 19px; margin-top: 30px; margin-bottom: 12px; }
+.document-prose h4, .document-prose h5, .document-prose h6 { font-size: 17px; margin-top: 24px; margin-bottom: 10px; }
+.document-prose p { margin-top: 0; margin-bottom: 18px; }
+.document-prose strong { color: #f0f3fb; font-weight: 650; }
+.document-prose em { color: #c3cce0; }
+.document-prose ul, .document-prose ol { padding-left: 25px; margin-top: 14px; margin-bottom: 24px; }
+.document-prose li { padding-left: 5px; margin: 8px 0; }
+.document-prose li::marker { color: #9cb1f2; font-weight: 600; }
+.document-prose li > ul, .document-prose li > ol { margin-top: 8px; margin-bottom: 10px; }
+.document-prose li p { margin-bottom: 10px; }
+.document-prose a { color: #b3c5ff; text-decoration: underline; text-decoration-color: #5b6eab; text-underline-offset: 3px; }
+.document-prose a:hover { color: #d6e0ff; text-decoration-color: #b3c5ff; }
+.document-prose a[data-unavailable-link] { color: var(--muted); text-decoration-style: dotted; }
+.document-prose blockquote { border-left: 3px solid #91aaff; background: #242c40; border-radius: 0 10px 10px 0; padding: 18px 22px; margin-top: 24px; margin-bottom: 24px; }
+.document-prose blockquote p:last-child { margin-bottom: 0; }
+.document-prose hr { height: 1px; border: 0; background: var(--line); margin-top: 32px; margin-bottom: 32px; }
+.document-prose code { font: .88em/1.65 Consolas, "Cascadia Code", monospace; color: #cad6ff; background: #293247; padding: 2px 6px; border-radius: 5px; box-decoration-break: clone; }
+.document-prose pre { background: #111620; border: 1px solid #354158; border-radius: 10px; padding: 20px; overflow-x: auto; overflow-wrap: normal; margin-top: 22px; margin-bottom: 24px; tab-size: 4; }
+.document-prose pre code { display: block; padding: 0; background: transparent; color: #dce5f8; font-size: 14px; white-space: pre; }
+.document-table { margin-top: 22px; margin-bottom: 26px; border: 1px solid #364055; border-radius: 10px; overflow-x: auto; }
+.document-table table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.7; }
+.document-table th { background: #283249; color: #e5ecfd; font-weight: 600; text-align: left; }
+.document-table th, .document-table td { padding: 13px 16px; vertical-align: top; min-width: 90px; border-bottom: 1px solid #30384a; }
+.document-table th:first-child, .document-table td:first-child { min-width: 110px; }
+.document-table tbody tr:nth-child(even) { background: #1e2330; }
+.document-table tbody tr:last-child td { border-bottom: 0; }
+.document-table td p { margin: 0; }
+.document-prose .document-task { list-style: none; padding-left: 0; position: relative; }
+.document-task-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border: 1px solid #56617a; border-radius: 5px; margin-left: -25px; margin-right: 7px; color: #aab4ca; font-size: 13px; vertical-align: text-bottom; }
+.document-task-mark.done { color: var(--green); border-color: #467b66; background: #243d34; }
+.document-end { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--line); margin-top: 36px; padding-top: 20px; color: var(--muted); font-size: 12px; }
+.document-end button { background: transparent; color: var(--accent); border: 0; padding: 0; font-size: 12px; }
+.document-end button:hover { text-decoration: underline; }
+.document-toc { position: sticky; top: 24px; min-width: 0; font-size: 12px; }
+.document-toc details { border: 1px solid var(--line); border-radius: 12px; background: #181b24; padding: 16px; }
+.document-toc summary { font-size: 13px; font-weight: 600; line-height: 1.5; cursor: pointer; color: #d5ddf0; }
+.document-toc summary span { color: var(--muted); margin-left: 5px; font-size: 12px; }
+.document-toc nav { display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - 160px); overflow-y: auto; margin-top: 16px; }
+.document-toc nav a { display: block; font-size: 12px; line-height: 1.6; padding: 8px 9px; border-radius: 6px; color: #aab7d1; overflow-wrap: anywhere; }
+.document-toc nav a:hover, .document-toc nav a:focus { background: #28334b; color: #d5e1ff; }
+.document-toc .toc-level-3 { padding-left: 20px; }
+.document-toc .toc-level-4, .document-toc .toc-level-5, .document-toc .toc-level-6 { padding-left: 28px; }
+
+@media (max-width: 1099px) {
+  .document-layout.has-toc { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .document-toc { position: static; grid-row: 1; }
+  .document-toc nav { max-height: 360px; }
+}
+@media (max-width: 900px) {
+  .sidebar nav a { font-size: 13px; padding: 9px 11px; }
+  .brand-caption { font-size: 10px; }
+}
+@media (max-width: 600px) {
+  .sidebar nav a { font-size: 12px; padding: 9px; }
+  .page-heading p, .hero p { font-size: 14px; }
+  .stat small { font-size: 12px; }
+  .section-head p { font-size: 13px; }
+  .section-head .text-link { font-size: 12px; }
+  .lesson-title { font-size: 14px; }
+  .lesson-kicker, .badge { font-size: 11px; }
+  .resource small { font-size: 12px; }
+  .viewer-toolbar .button { font-size: 12px; }
+  .document-prose { font-size: 15px; line-height: 1.85; padding: 24px 18px; }
+  .document-prose h1 { font-size: 26px; }
+  .document-prose h2 { font-size: 21px; margin-top: 32px; padding-top: 22px; }
+  .document-prose h3 { font-size: 18px; }
+  .document-prose blockquote { padding: 16px; }
+  .document-prose pre { padding: 15px; }
+  .document-prose pre code { font-size: 13px; }
+  .document-table table { font-size: 13px; }
+  .document-table th, .document-table td { padding: 11px 12px; min-width: 100px; }
+  .document-meta { font-size: 11px; }
+  footer { font-size: 11px; }
+}
