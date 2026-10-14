@@ -121,6 +121,37 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(scanner.search_lessons(self.root, self.catalog,
                                                 "несуществующее-слово-xyz"), [])
 
+    def test_track_files_program_and_readme(self):
+        track_b = next(t for t in self.catalog["tracks"] if t["id"] == "track-b")
+        file_names = [f["name"] for f in track_b["files"]]
+        self.assertIn("ПРОГРАММА-питон.md", file_names)
+        self.assertIn("README.md", file_names)
+        program = next(f for f in track_b["files"]
+                       if f["name"] == "ПРОГРАММА-питон.md")
+        self.assertIn("ПРОГРАММА курса Python", program["title"])
+        self.assertTrue(program["url"].startswith("/content/уроки/"))
+        # у треков без документов список файлов пуст, но поле есть у всех
+        track_a = next(t for t in self.catalog["tracks"] if t["id"] == "track-a")
+        self.assertEqual(track_a["files"], [])
+        self.assertIn("files", track_a)
+
+    def test_game_dev_section(self):
+        game = self.catalog["game_dev"]
+        self.assertIsNotNone(game)
+        self.assertEqual(game["id"], "game-dev")
+        self.assertIn("Разработка игры", game["title"])
+        self.assertEqual(game["file"], "разработка-игры.md")
+        self.assertTrue(game["url"].startswith("/content/разработка-игры.md"))
+        self.assertEqual(self.catalog["counts"]["game_dev"], 1)
+
+    def test_game_dev_absent_when_no_file(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "уроки" / "база").mkdir(parents=True)
+            catalog = scanner.scan_catalog(Path(tmp))
+            self.assertIsNone(catalog["game_dev"])
+            self.assertEqual(catalog["counts"]["game_dev"], 0)
+
     def test_catalog_counts(self):
         counts = self.catalog["counts"]
         self.assertEqual(counts["tracks"], 4)
@@ -128,6 +159,7 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(counts["lessons"], 5)
         self.assertEqual(counts["express_courses"], 2)
         self.assertEqual(counts["express_lessons"], 3)
+        self.assertEqual(counts["game_dev"], 1)
         self.assertEqual(counts["documents"], 1)
         self.assertEqual(counts["progress_notes"], 1)
 

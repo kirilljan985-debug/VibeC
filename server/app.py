@@ -32,7 +32,7 @@ import scanner
 from store import ProgressStore, ALLOWED_STATUS
 
 SERVER_VERSION = "VibeC/1.0"
-CONTRACT_VERSION = "1.4"
+CONTRACT_VERSION = "1.5"
 
 # вкладка портала считается открытой, если фронт обращался к серверу
 # недавно (он опрашивает каталог раз в минуту, пока вкладка активна)

@@ -96,7 +96,8 @@
       const lessons = track.lessons || [], visible = filtered(lessons);
       const title = track.title || "Новый трек";
       const open = expanded || state.openTracks.has(track.id);
-      return `<article class="track"><div class="track-symbol" aria-hidden="true">${["⌘", "✳", "&lt;/&gt;"][index % 3]}</div><h3>${esc(title)}</h3><p class="track-description">${esc(track.description || "Новый раздел вашего курса. Открывайте уроки и двигайтесь в своём темпе.")}</p><div class="progress-meta"><span>${completed(lessons)} из ${lessons.length} пройдено</span><span>${percent(lessons)}%</span></div>${progressBar(lessons)}<details data-track="${esc(track.id)}" ${open ? "open" : ""}><summary>Уроки трека · ${visible.length}</summary><div class="lesson-list">${visible.map(lessonRow).join("") || `<p class="empty">${lessons.length ? "Нет уроков с выбранным статусом." : "Уроки скоро появятся."}</p>`}</div></details></article>`;
+      const files = (track.files || []).map(file => `<a class="text-link" href="#resource/${encodeURIComponent(`trackfile:${file.file}`)}">${esc(file.title || file.name)} ↗</a>`).join("");
+      return `<article class="track"><div class="track-symbol" aria-hidden="true">${["⌘", "✳", "&lt;/&gt;"][index % 3]}</div><h3>${esc(title)}</h3><p class="track-description">${esc(track.description || "Новый раздел вашего курса. Открывайте уроки и двигайтесь в своём темпе.")}</p>${files ? `<div class="express-links track-files">${files}</div>` : ""}<div class="progress-meta"><span>${completed(lessons)} из ${lessons.length} пройдено</span><span>${percent(lessons)}%</span></div>${progressBar(lessons)}<details data-track="${esc(track.id)}" ${open ? "open" : ""}><summary>Уроки трека · ${visible.length}</summary><div class="lesson-list">${visible.map(lessonRow).join("") || `<p class="empty">${lessons.length ? "Нет уроков с выбранным статусом." : "Уроки скоро появятся."}</p>`}</div></details></article>`;
     }).join("")}</div>`;
   }
   function expressCourseBlock(course, index, total) {
@@ -109,6 +110,11 @@
     const courses = state.catalog.express_courses || [];
     return courses.map((course, index) => expressCourseBlock(course, index, courses.length)).join("") || `<div class="empty">Экспресс-курсы появятся здесь, когда будут добавлены в папку обучения.</div>`;
   }
+  function renderGameDevPanel() {
+    const game = state.catalog.game_dev;
+    if (!game) return `<div class="empty">Раздел «Разработка игры» появится здесь, когда будет создан в папке обучения.</div>`;
+    return `<div class="express-panel"><div><div class="eyebrow">РАЗДЕЛ КУРСА</div><h3>${esc(game.title)}</h3><p>Сопровождаемая поэтапная разработка реальной игры через агентов: бриф → ядро → фронт → кросс-ревью → приёмка. Игра живёт в папке rpg-adventure.</p><div class="express-links"><a class="text-link" href="#gamedev">Читать документ раздела ↗</a></div></div><a class="button primary" href="#gamedev">Открыть раздел <span aria-hidden="true">→</span></a></div>`;
+  }
   function renderResources() {
     const groups = resourceGroups().filter(([, , , items]) => items.length);
     return groups.map(([group, title, symbol, items]) => `<h3 class="group-label">${title} · ${items.length}</h3><div class="resource-grid">${items.map(item => {
@@ -120,6 +126,7 @@
   function renderDashboard(page) {
     if (page === "lessons") return heading("Уроки", "Каждый урок — ещё один шаг от идеи к работающему проекту.", "ОСНОВНОЙ КУРС") + filters() + renderTracks(true);
     if (page === "express") return heading("Экспресс-курсы", "Ветка «Вайб-кодер»: junior, middle, senior — проходите грейд за грейдом.", "БЫСТРЫЙ СТАРТ") + filters() + renderExpress();
+    if (page === "gamedev") return heading("Разработка игры", "Документ раздела открыт ниже — обновите страницу, если он не подгрузился.", "РАЗДЕЛ КУРСА") + `<pre class="document-text">Открываем документ раздела…</pre>`;
     if (page === "resources") return heading("Всё под рукой", "Справочники, материалы курса и ваш дневник обучения.", "БИБЛИОТЕКА КУРСА") + renderResources();
     const lessons = allLessons(), done = completed(lessons);
     const resume = lessons.find(lesson => ["reading", "in-progress"].includes(effectiveStatus(lesson))) || lessons.find(lesson => effectiveStatus(lesson) !== "done");
@@ -131,7 +138,8 @@
       `<div class="stats">${[["▤", lessons.length, "Уроков в курсе"], ["✓", done, "Пройдено"], ["◈", (state.catalog.tracks || []).length, "Учебных треков"], ["◫", resources, "Материалов под рукой"]].map(([icon, value, label]) => `<div class="stat"><span class="stat-icon" aria-hidden="true">${icon}</span><div><strong>${value}</strong><small>${label}</small></div></div>`).join("")}</div>` +
       `<section class="section"><div class="section-head"><div><h2><span class="section-number">01</span>Ваши учебные треки</h2><p>Выбирайте направление и двигайтесь шаг за шагом</p></div><a class="text-link" href="#lessons">Все уроки →</a></div>${filters()}${renderTracks()}</section>` +
       `<section class="section"><div class="section-head"><h2><span class="section-number">02</span>Экспресс-курсы</h2><a class="text-link" href="#express">К курсу →</a></div>${renderExpress()}</section>` +
-      `<section class="section"><div class="section-head"><h2><span class="section-number">03</span>Справочники и документы</h2><a class="text-link" href="#resources">Открыть всё →</a></div>${renderResources()}</section>`;
+      `<section class="section"><div class="section-head"><h2><span class="section-number">03</span>Разработка игры</h2><a class="text-link" href="#gamedev">Открыть раздел →</a></div>${renderGameDevPanel()}</section>` +
+      `<section class="section"><div class="section-head"><h2><span class="section-number">04</span>Справочники и документы</h2><a class="text-link" href="#resources">Открыть всё →</a></div>${renderResources()}</section>`;
   }
   function viewerHTML(item, lesson = false) {
     const url = safeURL(item.url);
@@ -152,6 +160,15 @@
         return { title: `${label}: ${course.title}`, url };
       }
     }
+    // документы, лежащие в папке трека (программа курса и т.п.): trackfile:<путь>
+    if (id.startsWith("trackfile:")) {
+      const rel = id.slice("trackfile:".length);
+      for (const track of state.catalog?.tracks || []) {
+        const file = (track.files || []).find(item => item.file === rel);
+        if (file) return { title: file.title || file.name, url: file.url, track_title: track.title };
+      }
+      return null;
+    }
     const separator = id.indexOf(":");
     const group = id.slice(0, separator), key = id.slice(separator + 1);
     return resourceGroups().find(([name]) => name === group)?.[3].find(item => (item.file || item.id) === key);
@@ -168,13 +185,13 @@
     searchController?.abort();
     const { page, id } = route();
     state.resource = null;
-    const section = ["home", "lessons", "express", "resources"].includes(page) ? page : page === "resource" ? "resources" : page === "lesson" ? "lessons" : "";
+    const section = ["home", "lessons", "express", "gamedev", "resources"].includes(page) ? page : page === "resource" ? "resources" : page === "lesson" ? "lessons" : "";
     document.querySelectorAll("[data-nav]").forEach(link => {
       const active = link.dataset.nav === section;
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
     });
-    const pageName = ({ home: "Обзор", lessons: "Уроки", express: "Экспресс-курсы", resources: "Библиотека", lesson: "Урок", resource: "Материал", search: "Поиск" })[page] || "Страница";
+    const pageName = ({ home: "Обзор", lessons: "Уроки", express: "Экспресс-курсы", gamedev: "Разработка игры", resources: "Библиотека", lesson: "Урок", resource: "Материал", search: "Поиск" })[page] || "Страница";
     $("#breadcrumb").innerHTML = `Мой курс <span>/</span> ${pageName}`;
     document.title = `${pageName} · VibeC`;
     if (page === "search") $("#search").value = id;
@@ -183,6 +200,15 @@
     if (focus) { window.scrollTo({ top: 0 }); $("#main").focus({ preventScroll: true }); }
     try {
       if (["home", "lessons", "express", "resources"].includes(page)) { setContent(renderDashboard(page)); return; }
+      if (page === "gamedev") {
+        const game = state.catalog.game_dev;
+        if (!game) { setContent(heading("Разработка игры", "Раздел появится, когда в папке обучения будет создан файл раздела.", "РАЗДЕЛ КУРСА") + `<div class="empty">Документ раздела пока не создан.</div>`); return; }
+        document.title = `${game.title} · VibeC`;
+        setContent(heading("Разработка игры", "Сопровождаемая разработка реальной игры через агентов: фазы, кросс-ревью, приёмка. Актуальный статус фаз — в документе.", "РАЗДЕЛ КУРСА") + `<pre class="document-text" id="document-text">Загружаем документ…</pre>`);
+        const text = await request(safeURL(game.url), { raw: true });
+        if (version === routeVersion && $("#document-text")) $("#document-text").textContent = text;
+        return;
+      }
       if (page === "lesson") {
         setContent(`<div class="loading"><span class="spinner"></span>Открываем урок…</div>`);
         content.setAttribute("aria-busy", "true");
@@ -255,7 +281,7 @@
       $("#sync-label").textContent = `Обновлено ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date())}`;
       notice(progressError ? "Каталог загружен, но сохранённые отметки прогресса сейчас недоступны." : "");
       const page = route().page;
-      if (!quiet || ((changed || previousProgress !== JSON.stringify(state.progress)) && ["home", "lessons", "express", "resources"].includes(page))) await renderRoute();
+      if (!quiet || ((changed || previousProgress !== JSON.stringify(state.progress)) && ["home", "lessons", "express", "gamedev", "resources"].includes(page))) await renderRoute();
       else if (quiet && (changed || previousProgress !== JSON.stringify(state.progress)) && page === "lesson" && state.resource) {
         // открытый урок: молча обновляем данные и кнопку отметки, не перерисовывая iframe
         const fresh = allLessons().find(item => item.id === state.resource.id);
@@ -277,7 +303,7 @@
   function updateCompletionUI() {
     const focusedButton = document.activeElement?.dataset.action === "complete" ? document.activeElement.dataset.id : null;
     const current = route();
-    if (["home", "lessons", "express", "resources"].includes(current.page)) setContent(renderDashboard(current.page));
+    if (["home", "lessons", "express", "gamedev", "resources"].includes(current.page)) setContent(renderDashboard(current.page));
     else if (current.page === "lesson" && state.resource) {
       const button = content.querySelector('[data-action="complete"]');
       if (button) button.outerHTML = completionButton(state.resource, true);

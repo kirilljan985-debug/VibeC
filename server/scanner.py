@@ -26,6 +26,7 @@ KNOWN_TRACKS = {
 }
 
 EXPRESS_DIR = "экспресс-курсы"  # ветка экспресс-курсов: каждая подпапка — отдельный курс
+GAME_DEV_FILE = "разработка-игры.md"  # раздел «Разработка игры» в корне обучения
 LESSON_RE = re.compile(r"^(\d{4})-")  # имена уроков: 0001-kak-...
 
 # Статусы уроков из таблицы «Статус» в обучение/ПАМЯТЬ.md (первичный посев;
@@ -117,7 +118,16 @@ def _make_track(folder_name: str) -> dict:
         title = "Трек · " + folder_name
         description = ""
     return {"id": track_id, "folder": folder_name, "title": title,
-            "description": description, "lessons": []}
+            "description": description, "lessons": [], "files": []}
+
+
+def _scan_game_dev(root: Path) -> dict | None:
+    """Раздел «Разработка игры» — поэтапная разработка «Пепла» (разработка-игры.md)."""
+    path = root / GAME_DEV_FILE
+    if not path.is_file():
+        return None
+    return {"id": "game-dev", "title": _md_title(path),
+            "file": _rel(path, root), "url": _url(_rel(path, root))}
 
 
 def _collect_track_lessons(root: Path, track: dict, seeds: dict) -> None:
@@ -127,7 +137,16 @@ def _collect_track_lessons(root: Path, track: dict, seeds: dict) -> None:
     for path in sorted(track_dir.iterdir()):
         m = LESSON_RE.match(path.name)
         if not m or path.suffix != ".html":
-            continue  # уроки только с сквозным номером; README и прочее — мимо
+            # файлы трека без сквозного номера (программа курса, README и т.п.)
+            if path.suffix in (".md", ".html") and path.is_file():
+                track["files"].append({
+                    "name": path.name,
+                    "title": _md_title(path) if path.suffix == ".md"
+                             else parse_lesson_html(_read(path))["title"] or path.stem,
+                    "file": _rel(path, root),
+                    "url": _url(_rel(path, root)),
+                })
+            continue  # уроки только со сквозным номером
         number = m.group(1)
         info = parse_lesson_html(_read(path))
         rel = _rel(path, root)
@@ -288,15 +307,17 @@ def scan_catalog(root: Path) -> dict:
     references = _scan_references(root)
     materials = _scan_materials(root)
     documents, progress_notes = _scan_documents(root)
+    game_dev = _scan_game_dev(root)
 
     track_lessons = sum(len(t["lessons"]) for t in tracks)
     return {
         "api": "vibec",
-        "version": 2,
+        "version": 3,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "content_root": str(root),
         "tracks": tracks,
         "express_courses": express_courses,
+        "game_dev": game_dev,
         "references": references,
         "materials": materials,
         "documents": documents,
@@ -306,6 +327,7 @@ def scan_catalog(root: Path) -> dict:
             "lessons": track_lessons,
             "express_courses": len(express_courses),
             "express_lessons": sum(len(c["lessons"]) for c in express_courses),
+            "game_dev": 1 if game_dev else 0,
             "references": len(references),
             "materials": len(materials),
             "documents": len(documents),

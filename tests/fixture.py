@@ -83,6 +83,9 @@ def build_fixture(root: Path) -> Path:
                     "Первый урок трека Б.",
                     "переменных"), encoding="utf-8")
     (track_b / "README.md").write_text("# Список уроков Б\n", encoding="utf-8")
+    (track_b / "ПРОГРАММА-питон.md").write_text(
+        "# 🐍 ПРОГРАММА курса Python\nЭтап 1 «База», этап 2 «Продолжение».\n",
+        encoding="utf-8")
 
     # неизвестный трек — должен подхватиться автоматически
     track_v = lessons / "трек-В-новый"
@@ -146,6 +149,12 @@ def build_fixture(root: Path) -> Path:
         encoding="utf-8")
 
     (root / "ПАМЯТЬ.md").write_text(MEMORY_MD, encoding="utf-8")
+
+    # раздел «Разработка игры» — самостоятельный раздел курса в корне обучения
+    (root / "разработка-игры.md").write_text(
+        "# 🎮 Разработка игры «Пепел» — отдельный раздел курса\n"
+        "Сопровождаемая поэтапная разработка через агентов.\n",
+        encoding="utf-8")
 
     # посторонние проекты в корне обучения — сканер обязан их игнорировать
     (root / "rpg-adventure").mkdir()
