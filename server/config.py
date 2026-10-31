@@ -18,9 +18,6 @@ if getattr(sys, "frozen", False):
 else:
     REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# По умолчанию папка «обучение» ищется рядом с репозиторием (оба на рабочем столе).
-DEFAULT_CONTENT_ROOT = REPO_ROOT.parent / "обучение"
-
 DATA_DIR = REPO_ROOT / "data"
 FRONT_DIR = REPO_ROOT / "front"
 PROGRESS_FILE = DATA_DIR / "progress.json"
@@ -34,7 +31,25 @@ OPEN_BROWSER = os.environ.get("VIBEC_OPEN_BROWSER", "") == "1"
 IDLE_EXIT_MINUTES = int(os.environ.get("VIBEC_IDLE_EXIT_MINUTES", "30"))
 
 
+def resolve_content_root(repo_root: Path | None = None) -> Path:
+    """Найти папку «обучение» относительно репозитория.
+
+    Работает при любом расположении репозитория: рядом с «обучением»
+    (~/Desktop/VibeC), внутри него (обучение/VibeC) или уровнем выше.
+    Идём вверх по дереву: у каждого предка проверяем его подпапку
+    «обучение» и его самого (по характерной подпапке «уроки»).
+    """
+    repo = Path(repo_root) if repo_root is not None else REPO_ROOT
+    for ancestor in list(repo.parents)[:4]:
+        candidate = ancestor / "обучение"
+        if candidate.is_dir() and (candidate / "уроки").is_dir():
+            return candidate
+        if ancestor.name == "обучение" and (ancestor / "уроки").is_dir():
+            return ancestor
+    return repo.parent / "обучение"  # не нашли — прежнее место по умолчанию
+
+
 def content_root() -> Path:
-    """Актуальный корень контента: env-переменная сильнее значения по умолчанию."""
+    """Актуальный корень контента: env-переменная сильнее авторазрешения."""
     override = os.environ.get("VIBEC_CONTENT_ROOT", "").strip()
-    return Path(override) if override else DEFAULT_CONTENT_ROOT
+    return Path(override) if override else resolve_content_root()
